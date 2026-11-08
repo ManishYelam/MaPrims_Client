@@ -8,7 +8,7 @@ const WhatsAppFloatingIcon = () => {
   // Hardcoded WhatsApp configuration
   const whatsappConfig = {
     phoneNumber: whatsapp,
-    appName: 'Shirsat Tech Hub – SAP Training, IT Courses & Development Services',
+    appName: 'MaPrims – IT Services, Domains & Software Development'
   }
 
   const handleWhatsAppClick = () => {

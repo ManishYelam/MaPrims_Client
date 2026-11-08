@@ -171,9 +171,9 @@ const Contact = () => {
       {
         icon: MailIcon,
         title: 'Email Support',
-        value: 'support@shirsattechhub.cloud',
+        value: 'support@maprims.in',
         description: 'Get detailed course information via email',
-        href: 'mailto:support@shirsattechhub.cloud?subject=Course Inquiry - Shirsat Tech Hub',
+        href: 'mailto:support@maprims.in?subject=Course Inquiry - MaPrims',
         color: 'bg-blue-100',
       },
       {

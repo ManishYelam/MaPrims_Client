@@ -16,8 +16,9 @@ import {
   Sparkles,
   Briefcase,
   Newspaper,
+  Globe,
 } from 'lucide-react'
-import logo from '../assets/logo-tech1.svg'
+import logo from '../assets/MaPrimsTechLogo-M.png';
 import { useAuth } from '../context/AuthContext'
 
 const Header = () => {
@@ -28,7 +29,6 @@ const Header = () => {
   const { user, logout, isAuthenticated } = useAuth()
   const profileRef = useRef(null)
 
-  // Close profile dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = event => {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
@@ -40,7 +40,6 @@ const Header = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Base navigation items (always shown)
   const baseNavigation = [
     {
       name: 'Home',
@@ -48,17 +47,23 @@ const Header = () => {
       current: location.pathname === '/',
       icon: Home,
     },
-    {
-      name: 'Courses',
-      href: '/courses',
-      current: location.pathname.startsWith('/courses'),
-      icon: GraduationCap,
-    },
+    // {
+    //   name: 'Courses',
+    //   href: '/courses',
+    //   current: location.pathname.startsWith('/courses'),
+    //   icon: GraduationCap,
+    // },
     {
       name: 'Services',
       href: '/services',
       current: location.pathname === '/services',
       icon: Briefcase,
+    },
+    {
+      name: 'Domains',
+      href: '/domains',
+      current: location.pathname.startsWith('/domains'),
+      icon: Globe,
     },
     {
       name: 'Blog',
@@ -80,7 +85,6 @@ const Header = () => {
     },
   ]
 
-  // Dashboard navigation item (only for authenticated users)
   const dashboardNavigationItem = {
     name: 'Dashboard',
     href: '/dashboard',
@@ -88,7 +92,6 @@ const Header = () => {
     icon: LayoutDashboard,
   }
 
-  // Combine navigation items based on authentication
   const navigation = isAuthenticated
     ? [baseNavigation[0], dashboardNavigationItem, ...baseNavigation.slice(1)]
     : baseNavigation
@@ -123,32 +126,33 @@ const Header = () => {
 
   return (
     <header className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky top-0 z-50 shadow-sm">
-      {/* Full‑width container with responsive padding — same as other pages */}
       <nav className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20">
         <div className="flex justify-between items-center h-14">
-          {/* Logo - Compact */}
           <div className="flex items-center">
             <Link
               to="/"
-              aria-label="Shirsat Tech Hub - Return to homepage"
-              className="flex items-center space-x-2 p-1"
+              aria-label="MaPrims - Return to homepage"
+              className="flex items-center space-x-3 p-1"
               onClick={() => setIsMenuOpen(false)}
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-primary-500 to-accent-500 rounded-lg flex items-center justify-center group-hover:scale-105 transition-all duration-200 shadow-sm group-hover:shadow-md overflow-hidden">
-                <img src={logo} alt="Shirsat Tech Hub Logo" className="w-10 h-10 object-contain" />
-              </div>
-              <div className="flex flex-col leading-tight">
-                <h1 className="text-sm font-bold text-primary-900 md:text-base">
-                  Shirsat Tech Hub
+              <img
+                src={logo}
+                alt="MaPrims Logo"
+                className="h-10 md:h-12 w-auto object-contain transition-transform duration-200 hover:scale-105"
+              />
+
+              <div className="flex flex-col leading-tight hidden sm:flex">
+                <h1 className="text-lg font-bold text-[#0077C8] md:text-xl tracking-tight">
+                  MaPrims
                 </h1>
-                <p className="text-[10px] text-accent-600 md:text-xs">
-                  Innovation • Technology • Future
+                <p className="text-[10px] text-[#002B5C] font-semibold tracking-wider md:text-[11px]">
+                  innovate ★ build ★ grow
                 </p>
               </div>
             </Link>
           </div>
 
-          {/* Desktop Navigation - Compact */}
+          {/* Desktop nav */}
           <div className="hidden md:flex items-center space-x-1">
             {navigation.map(item => {
               const IconComponent = item.icon
@@ -169,7 +173,6 @@ const Header = () => {
             })}
           </div>
 
-          {/* Desktop Actions - Compact */}
           <div className="hidden md:flex items-center space-x-2">
             {isAuthenticated ? (
               <div className="relative" ref={profileRef}>
@@ -190,13 +193,11 @@ const Header = () => {
 
                 {isProfileOpen && (
                   <div className="absolute right-0 mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 animate-in fade-in-80 zoom-in-95">
-                    {/* User Info */}
                     <div className="px-3 py-2 border-b border-gray-100">
                       <p className="text-xs font-medium text-gray-900 truncate">{user?.name}</p>
                       <p className="text-[10px] text-gray-500 truncate">{user?.email}</p>
                     </div>
 
-                    {/* Navigation Links */}
                     <div className="py-1">
                       {userNavigation.map(item => {
                         const IconComponent = item.icon
@@ -217,7 +218,6 @@ const Header = () => {
                       })}
                     </div>
 
-                    {/* Logout Button */}
                     <div className="pt-1 border-t border-gray-100">
                       <button
                         onClick={handleLogout}
@@ -249,18 +249,18 @@ const Header = () => {
             )}
           </div>
 
-          {/* Mobile menu button - Compact */}
           <div className="md:hidden">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="p-1.5 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100 transition-colors border border-transparent hover:border-gray-200"
+              aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={isMenuOpen}
             >
               {isMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Navigation - Enhanced */}
         {isMenuOpen && (
           <div className="md:hidden border-t border-gray-100 py-3 bg-white/95 backdrop-blur-md">
             <div className="flex flex-col space-y-1">
@@ -286,7 +286,6 @@ const Header = () => {
               <div className="pt-3 mt-2 border-t border-gray-100">
                 {isAuthenticated ? (
                   <div className="space-y-1">
-                    {/* User Info in Mobile */}
                     <div className="px-3 py-2 bg-gray-50 rounded-lg mb-2">
                       <p className="text-xs font-medium text-gray-900">{user?.name}</p>
                       <p className="text-[10px] text-gray-500">{user?.email}</p>

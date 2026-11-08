@@ -28,7 +28,7 @@ const SystemSettings = () => {
   const [settings, setSettings] = useState({
     site_title: 'Learn SAP ABAP',
     site_description: 'Master SAP ABAP programming with expert-led courses',
-    contact_email: 'support@shirsattechhub.cloud',
+    contact_email: 'support@maprims.in',
   });
 
   const canViewGeneral = useMemo(

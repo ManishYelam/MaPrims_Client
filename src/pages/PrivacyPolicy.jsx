@@ -260,7 +260,7 @@ const PrivacyPolicy = () => {
                 <div>
                   <h4 className="font-semibold mb-3">Contact Our Privacy Team</h4>
                   <div className="space-y-2 text-primary-100">
-                    <p>📧 support@shirsattechhub.cloud</p>
+                    <p>📧 support@maprims.in</p>
                     <p>📞 +91 9876543210</p>
                     <p>📍 Pune, India</p>
                   </div>

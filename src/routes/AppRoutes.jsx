@@ -6,6 +6,7 @@ import Layout from '../layouts/Layout';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
 import Loading from '../components/Loading';
 import { StockPointProvider } from '../context/StockPointContext';
+import Domains from '../pages/Domains';
 
 const Home = lazy(() => import('../pages/Home'));
 const Login = lazy(() => import('../pages/auth/Login'));
@@ -66,6 +67,7 @@ const AppRoutes = () => {
             <Routes>
               <Route path="/" element={<Layout />}>
                 <Route index element={<Home />} />
+                <Route path="domains" element={<Domains />} />
                 <Route path="courses" element={<Courses />} />
                 <Route path="courses/:course_id" element={<CourseDetail />} />
                 <Route path="services/:service_id" element={<ServiceDetail />} />

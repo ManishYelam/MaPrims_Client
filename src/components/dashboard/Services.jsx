@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react'
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  lazy,
+  Suspense,
+} from 'react'
 import {
   Search,
   Filter,
@@ -65,6 +72,7 @@ const Servicess = () => {
     []
   )
 
+  // Build API payload from current filters (memoized)
   const buildApiPayload = useCallback(() => {
     const payload = {
       page: filters.page,
@@ -82,21 +90,28 @@ const Servicess = () => {
       payload.sortOrder = filters.sortOrder
     }
 
-    if (filters.minPrice) payload.filters.minPrice = parseFloat(filters.minPrice)
-    if (filters.maxPrice) payload.filters.maxPrice = parseFloat(filters.maxPrice)
+    if (filters.minPrice !== '' && filters.minPrice != null) {
+      payload.filters.minPrice = parseFloat(filters.minPrice)
+    }
+    if (filters.maxPrice !== '' && filters.maxPrice != null) {
+      payload.filters.maxPrice = parseFloat(filters.maxPrice)
+    }
 
     return payload
   }, [filters])
 
+  // Fetch services
   const fetchServices = useCallback(async () => {
+    let cancelled = false
     try {
       setLoading(true)
       setError(null)
 
       const payload = buildApiPayload()
       const response = await servicesAPI.getAll(payload)
+      if (cancelled) return
 
-      const responseData = response.data?.data || response.data
+      const responseData = response?.data?.data ?? response?.data
 
       if (Array.isArray(responseData)) {
         setServices(responseData)
@@ -104,44 +119,54 @@ const Servicess = () => {
           page: filters.page,
           limit: filters.limit,
           totalItems: responseData.length,
-          totalPages: Math.ceil(responseData.length / filters.limit),
+          totalPages: Math.max(1, Math.ceil(responseData.length / filters.limit)),
         })
       } else if (responseData?.services && responseData?.pagination) {
         setServices(responseData.services)
         setPagination({
           page: responseData.pagination.page || 1,
           limit: responseData.pagination.limit || filters.limit,
-          totalItems: responseData.pagination.totalItems || responseData.services.length,
-          totalPages: responseData.pagination.totalPages || 1,
+          totalItems:
+            responseData.pagination.totalItems ?? responseData.services.length,
+          totalPages: Math.max(1, responseData.pagination.totalPages || 1),
         })
       } else {
-        setServices(responseData || [])
-        setPagination(prev => ({
-          ...prev,
-          totalItems: (responseData || []).length,
-          totalPages: Math.ceil((responseData || []).length / filters.limit),
-        }))
+        const arr = Array.isArray(responseData) ? responseData : []
+        setServices(arr)
+        setPagination({
+          page: filters.page,
+          limit: filters.limit,
+          totalItems: arr.length,
+          totalPages: Math.max(1, Math.ceil(arr.length / filters.limit)),
+        })
       }
     } catch (err) {
-      setError('Failed to load services. Please try again.')
-      console.error('Error fetching services:', err)
+      if (!cancelled) {
+        setError('Failed to load services. Please try again.')
+        console.error('Error fetching services:', err)
+      }
     } finally {
-      setLoading(false)
+      if (!cancelled) setLoading(false)
+    }
+
+    return () => {
+      cancelled = true
     }
   }, [buildApiPayload, filters.page, filters.limit])
 
-  // Reset page when filters change (except page itself)
-  useEffect(() => {
-    setFilters(prev => ({ ...prev, page: 1 }))
-  }, [filters.search, filters.minPrice, filters.maxPrice, filters.sortBy, filters.sortOrder])
-
-  // Debounced search
+  // Debounced fetch on filter change (including page)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchServices()
     }, 350)
     return () => clearTimeout(timeoutId)
   }, [fetchServices])
+
+  // Reset to page 1 when non-page filters change
+  useEffect(() => {
+    setFilters(prev => (prev.page === 1 ? prev : { ...prev, page: 1 }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.search, filters.minPrice, filters.maxPrice, filters.sortBy, filters.sortOrder])
 
   const handleFilterChange = useCallback((key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }))
@@ -150,7 +175,7 @@ const Servicess = () => {
   const handlePriceChange = useCallback(
     selectedValue => {
       if (!selectedValue) {
-        setFilters(prev => ({ ...prev, minPrice: '', maxPrice: '' }))
+        setFilters(prev => ({ ...prev, minPrice: '', maxPrice: '', page: 1 }))
         return
       }
       const range = priceRanges.find(r => r.value === selectedValue)
@@ -158,7 +183,8 @@ const Servicess = () => {
         setFilters(prev => ({
           ...prev,
           minPrice: range.min !== '' ? range.min : '',
-          maxPrice: range.max !== '' ? range.max : '',
+          maxPrice: range.max !== '' && range.max != null ? range.max : '',
+          page: 1,
         }))
       }
     },
@@ -167,7 +193,12 @@ const Servicess = () => {
 
   const handleSortChange = useCallback(value => {
     const [sortBy, sortOrder] = value.split(':')
-    setFilters(prev => ({ ...prev, sortBy, sortOrder }))
+    setFilters(prev => ({ ...prev, sortBy, sortOrder, page: 1 }))
+  }, [])
+
+  // Quick Links — also set order explicitly so behavior is predictable
+  const handleQuickSort = useCallback((sortBy, sortOrder = 'DESC') => {
+    setFilters(prev => ({ ...prev, sortBy, sortOrder, page: 1 }))
   }, [])
 
   const clearFilters = useCallback(() => {
@@ -186,13 +217,30 @@ const Servicess = () => {
     newPage => {
       if (newPage >= 1 && newPage <= pagination.totalPages) {
         setFilters(prev => ({ ...prev, page: newPage }))
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
       }
     },
     [pagination.totalPages]
   )
 
   const hasActiveFilters = useMemo(() => {
-    return filters.search || filters.minPrice || filters.maxPrice || filters.sortBy !== 'created_at'
+    return Boolean(
+      filters.search ||
+        filters.minPrice !== '' ||
+        filters.maxPrice !== '' ||
+        filters.sortBy !== 'created_at' ||
+        filters.sortOrder !== 'DESC'
+    )
+  }, [filters])
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (filters.search) count++
+    if (filters.minPrice !== '' || filters.maxPrice !== '') count++
+    if (filters.sortBy !== 'created_at' || filters.sortOrder !== 'DESC') count++
+    return count
   }, [filters])
 
   const LoadingSkeleton = () => (
@@ -203,7 +251,7 @@ const Servicess = () => {
           : 'space-y-4'
       }
     >
-      {Array.from({ length: filters.limit }).map((_, index) => (
+      {Array.from({ length: Math.min(filters.limit, 12) }).map((_, index) => (
         <div
           key={index}
           className={`bg-white/80 backdrop-blur-sm rounded-lg shadow-lg border border-white/20 overflow-hidden ${
@@ -227,13 +275,15 @@ const Servicess = () => {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/10">
-      {/* Hero Section — full width */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50/20 to-indigo-50/10">
+      {/* ============================================================
+          HERO — full width, compact
+          ============================================================ */}
       <section className="relative bg-gradient-to-br from-primary-900 via-primary-800 to-accent-700 text-white py-6 overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute top-4 -left-4 w-16 h-16 bg-accent-400/20 rounded-full blur-xl"></div>
-          <div className="absolute top-8 -right-4 w-24 h-24 bg-primary-400/20 rounded-full blur-xl"></div>
-          <div className="absolute -bottom-8 left-1/4 w-20 h-20 bg-accent-500/30 rounded-full blur-xl"></div>
+          <div className="absolute top-4 -left-4 w-16 h-16 bg-accent-400/20 rounded-full blur-xl" />
+          <div className="absolute top-8 -right-4 w-24 h-24 bg-primary-400/20 rounded-full blur-xl" />
+          <div className="absolute -bottom-8 left-1/4 w-20 h-20 bg-accent-500/30 rounded-full blur-xl" />
         </div>
         <div className="relative w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20">
           <div className="text-center">
@@ -241,7 +291,9 @@ const Servicess = () => {
               <Briefcase className="w-3 h-3 text-accent-300" />
               <span className="text-xs font-medium">Professional Services</span>
             </div>
-            <h1 className="text-xl lg:text-2xl font-bold font-display mb-2">Our Services</h1>
+            <h1 className="text-xl lg:text-2xl font-bold font-display mb-2">
+              Our Services
+            </h1>
             <p className="text-xs text-primary-100 max-w-xl mx-auto leading-relaxed">
               Explore our range of expert services designed to help your business grow
             </p>
@@ -249,7 +301,9 @@ const Servicess = () => {
         </div>
       </section>
 
-      {/* Main Content — full width */}
+      {/* ============================================================
+          MAIN CONTENT
+          ============================================================ */}
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20 py-6">
         {/* Filters and Search */}
         <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-md border border-white/20 mb-4">
@@ -269,6 +323,7 @@ const Servicess = () => {
                   <button
                     onClick={() => handleFilterChange('search', '')}
                     className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                    aria-label="Clear search"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -294,19 +349,18 @@ const Servicess = () => {
                 <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3 pointer-events-none" />
               </div>
 
-              {/* Filter toggle */}
+              {/* Filter toggle (mobile) */}
               <button
-                onClick={() => setShowFilters(!showFilters)}
+                onClick={() => setShowFilters(v => !v)}
                 className="lg:hidden flex items-center gap-1 px-2 py-1.5 border border-gray-300 rounded-lg hover:border-primary-400 text-xs"
+                aria-expanded={showFilters}
+                aria-controls="service-filters-panel"
               >
                 <SlidersHorizontal className="w-3 h-3" />
                 Filters
-                {hasActiveFilters && (
+                {activeFilterCount > 0 && (
                   <span className="bg-primary-500 text-white text-[10px] rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                    {
-                      Object.values(filters).filter(v => v && v !== 'created_at' && v !== 'DESC')
-                        .length
-                    }
+                    {activeFilterCount}
                   </span>
                 )}
               </button>
@@ -320,6 +374,8 @@ const Servicess = () => {
                       ? 'bg-primary-500 text-white'
                       : 'bg-white text-gray-600 hover:bg-gray-50'
                   }`}
+                  aria-label="Grid view"
+                  aria-pressed={viewMode === 'grid'}
                 >
                   <Grid3X3 className="w-3 h-3" />
                 </button>
@@ -330,6 +386,8 @@ const Servicess = () => {
                       ? 'bg-primary-500 text-white'
                       : 'bg-white text-gray-600 hover:bg-gray-50'
                   }`}
+                  aria-label="List view"
+                  aria-pressed={viewMode === 'list'}
                 >
                   <Table className="w-3 h-3" />
                 </button>
@@ -337,23 +395,30 @@ const Servicess = () => {
             </div>
           </div>
 
-          {/* Filter panel */}
-          {(showFilters || window.innerWidth >= 1024) && (
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-900 mb-1.5 uppercase tracking-wide">
-                    Price Range (Basic tier)
-                  </label>
-                  <div className="space-y-1">
-                    {priceRanges.map(range => (
+          {/* Filter panel — CSS-driven responsive (no window.innerWidth) */}
+          <div
+            id="service-filters-panel"
+            className={`mt-3 pt-3 border-t border-gray-200 ${
+              showFilters ? 'block' : 'hidden'
+            } lg:block`}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-900 mb-1.5 uppercase tracking-wide">
+                  Price Range (Basic tier)
+                </label>
+                <div className="space-y-1">
+                  {priceRanges.map(range => {
+                    const isActive =
+                      (filters.minPrice === (range.min !== '' ? range.min : '') &&
+                        filters.maxPrice === (range.max !== '' && range.max != null ? range.max : '')) ||
+                      (range.value === '' && filters.minPrice === '' && filters.maxPrice === '')
+                    return (
                       <button
                         key={range.value}
                         onClick={() => handlePriceChange(range.value)}
                         className={`w-full flex items-center justify-between p-1.5 rounded border text-xs ${
-                          (filters.minPrice === (range.min !== '' ? range.min : '') &&
-                            filters.maxPrice === (range.max !== '' ? range.max : '')) ||
-                          (range.value === '' && !filters.minPrice && !filters.maxPrice)
+                          isActive
                             ? 'border-primary-500 bg-primary-50 text-primary-700'
                             : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50'
                         }`}
@@ -363,31 +428,39 @@ const Servicess = () => {
                           <span className="font-medium">{range.label}</span>
                         </div>
                       </button>
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-900 mb-1.5 uppercase tracking-wide">
-                    Quick Links
-                  </label>
-                  <div className="space-y-1">
-                    <button
-                      onClick={() => handleFilterChange('sortBy', 'view_count')}
-                      className="w-full flex items-center gap-1.5 p-1.5 rounded border border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50 text-xs"
-                    >
-                      <TrendingUp className="w-3 h-3" /> Most Popular
-                    </button>
-                    <button
-                      onClick={() => handleFilterChange('sortBy', 'created_at')}
-                      className="w-full flex items-center gap-1.5 p-1.5 rounded border border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50 text-xs"
-                    >
-                      <Clock className="w-3 h-3" /> Newest First
-                    </button>
-                  </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-900 mb-1.5 uppercase tracking-wide">
+                  Quick Links
+                </label>
+                <div className="space-y-1">
+                  <button
+                    onClick={() => handleQuickSort('view_count', 'DESC')}
+                    className={`w-full flex items-center gap-1.5 p-1.5 rounded border text-xs ${
+                      filters.sortBy === 'view_count'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <TrendingUp className="w-3 h-3" /> Most Popular
+                  </button>
+                  <button
+                    onClick={() => handleQuickSort('created_at', 'DESC')}
+                    className={`w-full flex items-center gap-1.5 p-1.5 rounded border text-xs ${
+                      filters.sortBy === 'created_at' && filters.sortOrder === 'DESC'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Clock className="w-3 h-3" /> Newest First
+                  </button>
                 </div>
               </div>
             </div>
-          )}
+          </div>
 
           {/* Active filters */}
           {hasActiveFilters && (
@@ -402,19 +475,24 @@ const Servicess = () => {
                   <button
                     onClick={() => handleFilterChange('search', '')}
                     className="hover:text-primary-800 p-0.5"
+                    aria-label="Clear search filter"
                   >
                     <X className="w-2.5 h-2.5" />
                   </button>
                 </span>
               )}
-              {(filters.minPrice || filters.maxPrice) && (
+              {(filters.minPrice !== '' || filters.maxPrice !== '') && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
                   Price:{' '}
-                  {priceRanges.find(r => r.min == filters.minPrice && r.max == filters.maxPrice)
-                    ?.label || 'Custom'}
+                  {priceRanges.find(
+                    r =>
+                      String(r.min) === String(filters.minPrice) &&
+                      String(r.max ?? '') === String(filters.maxPrice ?? '')
+                  )?.label || 'Custom'}
                   <button
                     onClick={() => handlePriceChange('')}
                     className="hover:text-green-800 p-0.5"
+                    aria-label="Clear price filter"
                   >
                     <X className="w-2.5 h-2.5" />
                   </button>
@@ -479,123 +557,132 @@ const Servicess = () => {
               </button>
             </div>
           </div>
+        ) : services.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+              <Search className="w-5 h-5 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">No Services Found</h3>
+            <p className="text-xs text-gray-600 mb-4 max-w-md mx-auto">
+              {hasActiveFilters
+                ? 'No services match your current filters. Try adjusting your search criteria.'
+                : 'No services available at the moment. Please check back later.'}
+            </p>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="px-3 py-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-xs font-medium"
+              >
+                Clear All Filters
+              </button>
+            )}
+          </div>
         ) : (
           <>
-            {services.length > 0 ? (
-              <>
-                <div
-                  className={
-                    viewMode === 'grid'
-                      ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-4'
-                      : 'space-y-3'
-                  }
-                >
-                  <Suspense fallback={<LoadingSkeleton />}>
-                    {services.map(service => (
-                      <ServiceCard
-                        key={service.service_id || service.id}
-                        service={service}
-                        viewMode={viewMode}
-                      />
-                    ))}
-                  </Suspense>
-                </div>
-
-                {/* Pagination */}
-                {pagination.totalPages > 1 && (
-                  <div className="border-t border-gray-200 bg-white mt-6 rounded-lg shadow-sm">
-                    <div className="flex flex-col sm:flex-row items-center justify-between px-3 py-2 gap-2">
-                      <div className="flex items-center space-x-1 text-xs text-gray-600">
-                        <span>Showing</span>
-                        <span className="font-medium">
-                          {(filters.page - 1) * filters.limit + 1}
-                        </span>
-                        <span>to</span>
-                        <span className="font-medium">
-                          {Math.min(filters.page * filters.limit, pagination.totalItems)}
-                        </span>
-                        <span>of</span>
-                        <span className="font-medium">{pagination.totalItems}</span>
-                        <span>results</span>
-                      </div>
-                      <div className="flex items-center space-x-0.5">
-                        <button
-                          onClick={() => handlePageChange(1)}
-                          disabled={filters.page === 1}
-                          className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                        >
-                          <ChevronsLeft className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={() => handlePageChange(filters.page - 1)}
-                          disabled={filters.page === 1}
-                          className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                        >
-                          <ChevronLeft className="w-3 h-3" />
-                        </button>
-                        {(() => {
-                          const pages = []
-                          const totalPages = pagination.totalPages
-                          const currentPage = filters.page
-                          let startPage = Math.max(1, currentPage - 2)
-                          let endPage = Math.min(totalPages, currentPage + 2)
-                          if (currentPage <= 3) endPage = Math.min(5, totalPages)
-                          if (currentPage >= totalPages - 2) startPage = Math.max(1, totalPages - 4)
-                          for (let i = startPage; i <= endPage; i++) {
-                            pages.push(
-                              <button
-                                key={i}
-                                onClick={() => handlePageChange(i)}
-                                className={`w-6 h-6 text-xs rounded border transition-colors ${
-                                  filters.page === i
-                                    ? 'bg-primary-600 text-white border-primary-600'
-                                    : 'border-gray-300 hover:bg-gray-50 text-gray-700'
-                                }`}
-                              >
-                                {i}
-                              </button>
-                            )
-                          }
-                          return pages
-                        })()}
-                        <button
-                          onClick={() => handlePageChange(filters.page + 1)}
-                          disabled={filters.page === pagination.totalPages}
-                          className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                        >
-                          <ChevronRight className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={() => handlePageChange(pagination.totalPages)}
-                          disabled={filters.page === pagination.totalPages}
-                          className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                        >
-                          <ChevronsRight className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
+            <div
+              className={
+                viewMode === 'grid'
+                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-4'
+                  : 'space-y-3'
+              }
+            >
+              <Suspense
+                fallback={
+                  <div className="col-span-full">
+                    <LoadingSkeleton />
                   </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                  <Search className="w-5 h-5 text-gray-400" />
+                }
+              >
+                {services.map(service => (
+                  <ServiceCard
+                    key={service.service_id || service.id}
+                    service={service}
+                    viewMode={viewMode}
+                  />
+                ))}
+              </Suspense>
+            </div>
+
+            {/* Pagination */}
+            {pagination.totalPages > 1 && (
+              <div className="border-t border-gray-200 bg-white mt-6 rounded-lg shadow-sm">
+                <div className="flex flex-col sm:flex-row items-center justify-between px-3 py-2 gap-2">
+                  <div className="flex items-center space-x-1 text-xs text-gray-600">
+                    <span>Showing</span>
+                    <span className="font-medium">
+                      {(filters.page - 1) * filters.limit + 1}
+                    </span>
+                    <span>to</span>
+                    <span className="font-medium">
+                      {Math.min(filters.page * filters.limit, pagination.totalItems)}
+                    </span>
+                    <span>of</span>
+                    <span className="font-medium">{pagination.totalItems}</span>
+                    <span>results</span>
+                  </div>
+                  <div className="flex items-center space-x-0.5">
+                    <button
+                      onClick={() => handlePageChange(1)}
+                      disabled={filters.page === 1}
+                      className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      aria-label="First page"
+                    >
+                      <ChevronsLeft className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handlePageChange(filters.page - 1)}
+                      disabled={filters.page === 1}
+                      className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft className="w-3 h-3" />
+                    </button>
+                    {(() => {
+                      const pages = []
+                      const totalPages = pagination.totalPages
+                      const currentPage = filters.page
+                      let startPage = Math.max(1, currentPage - 2)
+                      let endPage = Math.min(totalPages, currentPage + 2)
+                      if (currentPage <= 3) endPage = Math.min(5, totalPages)
+                      if (currentPage >= totalPages - 2)
+                        startPage = Math.max(1, totalPages - 4)
+                      for (let i = startPage; i <= endPage; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => handlePageChange(i)}
+                            className={`w-6 h-6 text-xs rounded border transition-colors ${
+                              filters.page === i
+                                ? 'bg-primary-600 text-white border-primary-600'
+                                : 'border-gray-300 hover:bg-gray-50 text-gray-700'
+                            }`}
+                            aria-label={`Page ${i}`}
+                            aria-current={filters.page === i ? 'page' : undefined}
+                          >
+                            {i}
+                          </button>
+                        )
+                      }
+                      return pages
+                    })()}
+                    <button
+                      onClick={() => handlePageChange(filters.page + 1)}
+                      disabled={filters.page === pagination.totalPages}
+                      className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      aria-label="Next page"
+                    >
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handlePageChange(pagination.totalPages)}
+                      disabled={filters.page === pagination.totalPages}
+                      className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      aria-label="Last page"
+                    >
+                      <ChevronsRight className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">No Services Found</h3>
-                <p className="text-xs text-gray-600 mb-4 max-w-md mx-auto">
-                  {hasActiveFilters
-                    ? 'No services match your current filters. Try adjusting your search criteria.'
-                    : 'No services available at the moment. Please check back later.'}
-                </p>
-                {hasActiveFilters && (
-                  <button
-                    onClick={clearFilters}
-                    className="px-3 py-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-xs font-medium"
-                  >
-                    Clear All Filters
-                  </button>
-                )}
               </div>
             )}
           </>

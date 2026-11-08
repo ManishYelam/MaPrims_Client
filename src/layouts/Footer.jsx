@@ -1,7 +1,6 @@
-// src/components/layout/Footer.jsx
 import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import logo from '../assets/logo-tech1.svg'
+import logo from '../assets/MaPrimsTechLogo-M.png'
 import {
   BookOpen,
   Mail,
@@ -32,6 +31,7 @@ import {
   Cpu,
   Briefcase,
   X,
+  Smartphone,
 } from 'lucide-react'
 
 const Footer = () => {
@@ -40,7 +40,6 @@ const Footer = () => {
   const popupRef = useRef(null)
   const triggerRef = useRef(null)
 
-  // Close popup when clicking outside
   useEffect(() => {
     const handleClickOutside = event => {
       if (
@@ -60,75 +59,70 @@ const Footer = () => {
     }
   }, [])
 
-  // Handle click on trigger
   const handleTriggerClick = () => {
     setIsPopupOpen(!isPopupOpen)
     setShowDeveloperInfo(!isPopupOpen)
   }
 
-  // Close popup function
   const closePopup = () => {
     setIsPopupOpen(false)
     setShowDeveloperInfo(false)
   }
 
   const technologies = [
-    { name: 'SAP ABAP', icon: Building },
-    { name: 'SAP AI & Fiori', icon: Brain },
-    { name: 'GenAI & ChatGPT', icon: Sparkles },
-    { name: '.NET & Web Dev', icon: Code },
-    { name: 'Cloud & Azure', icon: Cloud },
-    { name: 'Data Science', icon: Globe },
+    { name: 'Web Development', icon: Code },
+    { name: 'Mobile Apps', icon: Smartphone },
+    { name: 'Cloud & DevOps', icon: Cloud },
+    { name: 'AI & Automation', icon: Brain },
+    { name: 'UI/UX Design', icon: Globe },
+    { name: 'Enterprise Software', icon: Building },
   ]
 
   const quickLinks = [
     { name: 'Home', path: '/', icon: Home },
-    { name: 'All Courses', path: '/courses', icon: GraduationCap },
+    { name: 'Our Services', path: '/services', icon: Briefcase },
     { name: 'About Us', path: '/about', icon: Users },
     { name: 'Contact', path: '/contact', icon: MessageSquare },
-    { name: 'Book Demo', path: '/contact?demo=true', icon: Calendar },
-    { name: 'Success Stories', path: '/testimonials', icon: Award },
+    { name: 'Book a Call', path: '/contact?demo=true', icon: Calendar },
+    { name: 'Case Studies', path: '/portfolio', icon: Award },
   ]
 
   const companyLinks = [
     { name: 'Privacy Policy', path: '/privacy', icon: Shield },
     { name: 'Terms of Service', path: '/terms', icon: FileText },
-    { name: 'Refund Policy', path: '/refund', icon: Shield },
     { name: 'FAQs', path: '/faq', icon: BookOpen },
     { name: 'Blog', path: '/blog', icon: BookOpen },
     { name: 'Careers', path: '/careers', icon: Users },
   ]
 
   const stats = [
-    { label: 'Students Trained', value: '1500+', icon: Users },
-    { label: 'Success Rate', value: '95%', icon: Award },
-    { label: 'Placement Support', value: '100%', icon: Shield },
-    { label: 'Job Readiness', value: '3-4 Months', icon: Clock },
+    { label: 'Projects Delivered', value: '50+', icon: Briefcase },
+    { label: 'Client Satisfaction', value: '99%', icon: Award },
+    { label: 'Tech Experts', value: '10+', icon: Users },
+    { label: 'Support', value: '24/7', icon: Clock },
   ]
 
-  // Shirsat Tech Hub social links
   const companySocialLinks = [
     {
       name: 'LinkedIn',
-      url: 'https://www.linkedin.com/in/akshay-v-shirsat-18061514a',
+      url: 'https://www.linkedin.com/company/maprims',
       icon: Linkedin,
       color: 'text-blue-400',
     },
     {
       name: 'Quora',
-      url: 'https://www.quora.com/profile/Akshay-V-Shirsat',
+      url: 'https://www.quora.com',
       icon: MessageSquare,
       color: 'text-red-400',
     },
     {
       name: 'Instagram',
-      url: 'https://www.instagram.com/shirsattechhub?igsh=YjF1ZzFtMmU2Yncy',
+      url: 'https://www.instagram.com/maprims',
       icon: Instagram,
       color: 'text-pink-400',
     },
   ]
 
-  // Developer contact info
   const developerInfo = {
     name: 'Manish Rajendra Yelam',
     role: 'MERN Stack Developer',
@@ -140,40 +134,32 @@ const Footer = () => {
     resume: 'https://drive.google.com/file/d/10tVvzIE19fZr2o1DAbUQgOArRw7PT91r/view?usp=sharing',
   }
 
-  // Determine popup visibility based on hover OR click
   const shouldShowPopup = showDeveloperInfo || isPopupOpen
 
   return (
     <footer className="bg-gradient-to-br from-slate-900 via-primary-900 to-accent-800 text-white">
-      {/* FULL WIDTH CONTAINER — replaced max-w-7xl with w-full and extended padding */}
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20 py-8">
-        {/* Main Footer Grid - 2 Rows */}
-
-        {/* First Row: Brand, Quick Links, Company, Technologies */}
         <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-4 gap-6 mb-8">
-          {/* Brand Section */}
           <div className="space-y-4">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-accent-500 rounded-xl flex items-center justify-center overflow-hidden shadow-lg">
+              <div className="w-12 h-12 flex items-center justify-center overflow-hidden">
                 <img
                   src={logo}
-                  alt="Shirsat Tech Hub Logo"
-                  className="w-8 h-8 object-contain p-1"
+                  alt="MaPrims Logo"
+                  className="w-full h-full object-contain"
                 />
               </div>
               <div>
-                <h1 className="text-xl font-bold">Shirsat Tech Hub</h1>
-                <p className="text-xs text-primary-200">Innovation • Technology • Future</p>
+                <h1 className="text-xl font-bold">MaPrims</h1>
+                <p className="text-xs text-primary-200">innovate ★ build ★ grow</p>
               </div>
             </div>
 
             <p className="text-xs text-primary-200 leading-relaxed">
-              Transform your career with comprehensive training in SAP, AI, Web, Cloud, and GenAI.
-              Learn from certified professionals and get job-ready in just 3-4 months.
+              We build scalable, high-performance digital solutions. From modern web apps to enterprise software, we turn your complex ideas into seamless technology.
             </p>
           </div>
 
-          {/* Quick Links */}
           <div>
             <h3 className="text-base font-bold mb-4 pb-2 border-b border-white/20">Quick Links</h3>
             <ul className="space-y-2">
@@ -191,7 +177,6 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Company */}
           <div>
             <h3 className="text-base font-bold mb-4 pb-2 border-b border-white/20">Company</h3>
             <ul className="space-y-2">
@@ -209,7 +194,6 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Technologies */}
           <div>
             <h3 className="text-base font-bold mb-4 pb-2 border-b border-white/20">Technologies</h3>
             <div className="grid grid-cols-2 gap-1">
@@ -229,9 +213,7 @@ const Footer = () => {
           </div>
         </div>
 
-        {/* Second Row: Contact Info, Social Links, Features */}
         <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-3 gap-6 mb-8">
-          {/* Contact Info */}
           <div className="space-y-3">
             <h3 className="text-base font-bold mb-3">Contact Information</h3>
             <div className="space-y-2">
@@ -240,7 +222,7 @@ const Footer = () => {
                   <Phone className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">+91 9527512770</p>
+                  <p className="text-sm font-medium">+91 9373200525</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -248,7 +230,7 @@ const Footer = () => {
                   <Mail className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">support@shirsattechhub.cloud</p>
+                  <p className="text-sm font-medium">support@maprims.in</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -262,7 +244,6 @@ const Footer = () => {
             </div>
           </div>
 
-          {/* Social Links */}
           <div className="space-y-3">
             <h3 className="text-base font-bold mb-3">Follow Us</h3>
             <div className="flex gap-3">
@@ -282,26 +263,24 @@ const Footer = () => {
               })}
             </div>
 
-            {/* Features */}
             <div className="pt-3">
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-1.5">
-                  <Calendar className="w-3 h-3" />
-                  <span className="text-xs">Learn Online or In-Person</span>
+                  <Code2 className="w-3 h-3" />
+                  <span className="text-xs">Custom Software Development</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Cpu className="w-3 h-3" />
-                  <span className="text-xs">Real Industry Projects</span>
+                  <span className="text-xs">AI-Powered Solutions</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Briefcase className="w-3 h-3" />
-                  <span className="text-xs">Job-Ready in 3-4 Months</span>
+                  <span className="text-xs">Enterprise Systems</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Stats */}
           <div className="grid grid-cols-2 gap-3">
             {stats.map((stat, index) => {
               const IconComponent = stat.icon
@@ -321,22 +300,18 @@ const Footer = () => {
           </div>
         </div>
 
-        {/* Divider */}
         <div className="border-t border-white/10 my-6"></div>
 
-        {/* Bottom Bar */}
         <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-3">
-          {/* Left: Copyright */}
           <div className="text-center md:text-left">
             <p className="text-primary-200 text-xs">
-              © 2025 Shirsat Tech Hub — Powered by Innovation & Excellence
+              © 2026 MaPrims — Powered by Innovation & Excellence
             </p>
             <p className="text-primary-300 text-[10px] mt-1">
-              Expert-led training in SAP, AI, Web, Cloud, and GenAI
+              Building scalable digital solutions for modern businesses
             </p>
           </div>
 
-          {/* Center: Developer Info */}
           <div className="relative flex justify-center">
             <div
               ref={triggerRef}
@@ -356,7 +331,6 @@ const Footer = () => {
               {isPopupOpen && <span className="text-[10px] text-cyan-300 ml-1">(Click to close)</span>}
             </div>
 
-            {/* Enhanced Popup Card - Shows on Hover OR Click */}
             <div
               ref={popupRef}
               className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 transition-all duration-300 ${
@@ -366,7 +340,6 @@ const Footer = () => {
               }`}
             >
               <div className="bg-gradient-to-br from-gray-900 to-slate-800 rounded-lg shadow-xl border border-white/10 backdrop-blur-sm w-64">
-                {/* Close button for clicked popup */}
                 {isPopupOpen && (
                   <button
                     onClick={closePopup}
@@ -377,7 +350,6 @@ const Footer = () => {
                 )}
 
                 <div className="p-3">
-                  {/* Header */}
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
                       <Code2 className="w-4 h-4 text-white" />
@@ -388,7 +360,6 @@ const Footer = () => {
                     </div>
                   </div>
 
-                  {/* Contact Info */}
                   <div className="space-y-1.5 mb-2.5">
                     <div className="flex items-center gap-1.5">
                       <Phone className="w-2.5 h-2.5 text-green-400" />
@@ -404,7 +375,6 @@ const Footer = () => {
                     </div>
                   </div>
 
-                  {/* Social Links */}
                   <div className="flex gap-1.5 mb-2.5">
                     <a
                       href={developerInfo.linkedin}
@@ -429,7 +399,6 @@ const Footer = () => {
                     </a>
                   </div>
 
-                  {/* Resume Button - Main Download Button */}
                   <a
                     href={developerInfo.resume}
                     target="_blank"
@@ -448,7 +417,6 @@ const Footer = () => {
                     Download Resume
                   </a>
 
-                  {/* Additional note for click users */}
                   {isPopupOpen && (
                     <p className="text-[10px] text-gray-400 mt-1.5 text-center">
                       Popup stays open for easy resume download
@@ -456,28 +424,26 @@ const Footer = () => {
                   )}
                 </div>
 
-                {/* Arrow pointing down */}
                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-gray-900 border-b border-r border-white/10 rotate-45"></div>
               </div>
             </div>
           </div>
 
-          {/* Right: Features */}
           <div className="flex flex-wrap justify-center md:justify-end gap-3">
             <div className="flex items-center gap-1.5 text-xs">
-              <Calendar className="w-3 h-3" />
-              <span className="hidden sm:inline">Online/Offline Classes</span>
-              <span className="sm:hidden">Classes</span>
+              <Globe className="w-3 h-3" />
+              <span className="hidden sm:inline">Global Solutions</span>
+              <span className="sm:hidden">Global</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs">
               <Building className="w-3 h-3" />
-              <span className="hidden sm:inline">Corporate Training</span>
-              <span className="sm:hidden">Corporate</span>
+              <span className="hidden sm:inline">Enterprise Ready</span>
+              <span className="sm:hidden">Enterprise</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs">
               <Award className="w-3 h-3" />
-              <span className="hidden sm:inline">Certification</span>
-              <span className="sm:hidden">Certified</span>
+              <span className="hidden sm:inline">Quality Assured</span>
+              <span className="sm:hidden">Quality</span>
             </div>
           </div>
         </div>

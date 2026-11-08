@@ -561,7 +561,7 @@ export const companyAddress = {
   area: 'Kharadi, Pune - 411014',
   city: 'Maharashtra, India',
   phone: '+91 12345 67890',
-  email: 'contact@shirsattechhub.com',
+  email: 'contact@maprims.in',
   mapLink: 'https://maps.google.com/?q=Kharadi+Pune+411014',
 }
 

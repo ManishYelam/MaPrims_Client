@@ -64,7 +64,7 @@ const ServiceConfirmationStep = ({ service, user, orderData, onComplete }) => {
       </div>
 
       <div className="mt-6 pt-4 border-t border-gray-200 text-xs text-gray-500">
-        Need help? <a href="mailto:support@shirsattechhub.com" className="text-primary-600 underline">support@shirsattechhub.com</a><br />
+        Need help? <a href="mailto:support@maprims.in" className="text-primary-600 underline">support@maprims.i</a><br />
         Order ID: #{orderDetails?.order_id} • Payment ID: {payment?.rzp_payment_id?.slice(-8)}
       </div>
     </div>

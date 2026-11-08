@@ -178,7 +178,7 @@ const ServiceOrderFlow = ({ service, onClose }) => {
         key: orderResponse.data.data.key_id,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
-        name: 'Shirsat Tech Hub',
+        name: 'MaPrims',
         description: `${service.title} - ${paymentAmounts.planName.toUpperCase()} Plan`,
         image: '/uploads/logo-tech2.svg',
         order_id: razorpayOrder.id,

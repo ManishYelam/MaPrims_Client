@@ -8,8 +8,8 @@ import {
   Eye, EyeOff, User, Mail, Lock, Shield, AlertCircle, Check, X, Building2
 } from 'lucide-react';
 import { authAPI, organizationAPI } from '../../services/api';
-import techhubLogo from '../../assets/techhub.svg';    // desktop left panel
-import mobileLogo from '../../assets/logo-tech1.svg';   // mobile header
+import techhubLogo from '../../assets/MaPrimsTechLogo.png';
+import mobileLogo from '../../assets/MaPrimsTechLogo-M.png';
 
 /* ---------- validation schema ---------- */
 const signupSchema = yup.object({
@@ -292,7 +292,7 @@ const Signup = () => {
           <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-primary-500/80 to-accent-500/80 p-4 items-center justify-center">
             <img
               src={techhubLogo}
-              alt="Shirsat Tech Hub"
+              alt="MaPrims"
               className="w-72 h-72 object-contain drop-shadow-2xl"
             />
           </div>

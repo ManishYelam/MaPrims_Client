@@ -2340,7 +2340,7 @@ const HelpSupport = () => {
         </div>
 
         <a
-          href="mailto:support@shirsattechhub.cloud"
+          href="mailto:support@maprims.in"
           className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center hover:shadow-md transition-shadow cursor-pointer"
         >
           <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -2348,7 +2348,7 @@ const HelpSupport = () => {
           </div>
           <h3 className="font-semibold text-gray-900 text-sm mb-1.5">Email Support</h3>
           <p className="text-gray-600 text-xs mb-2">
-            Send us an email at support@shirsattechhub.cloud
+            Send us an email at support@maprims.in
           </p>
           <div className="text-primary-600 hover:text-primary-700 text-xs font-medium flex items-center justify-center gap-1 mx-auto">
             Send Email
