@@ -379,7 +379,8 @@ const DepartmentModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-1 z-50">
-      <div className="bg-white rounded-md max-w-3xl w-full h-[92vh] flex flex-col shadow-xl">
+      {/* max-h instead of fixed h so the modal only grows to fit its content */}
+      <div className="bg-white rounded-md max-w-3xl w-full max-h-[92vh] flex flex-col shadow-xl">
 
         {/* HEADER — compact */}
         <div className="flex-shrink-0 flex items-center justify-between px-2.5 py-1.5 border-b">
@@ -414,8 +415,8 @@ const DepartmentModal = ({
           </div>
         </div>
 
-        {/* BODY — compact paddings and gaps */}
-        <div className="flex-1 overflow-y-auto p-2">
+        {/* BODY — compact paddings and gaps; min-h-0 lets it scroll inside max-h parent */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
 
             {/* LEFT COLUMN */}
@@ -691,7 +692,7 @@ const DepartmentModal = ({
                     <span className="text-[10px] text-gray-500">{formData.custom_fields.length} characters</span>
                   </div>
                   <textarea
-                    rows="6"
+                    rows={readOnly ? 4 : 6}
                     value={formData.custom_fields}
                     onChange={e => handleInputChange('custom_fields', e.target.value)}
                     className={`w-full px-2 py-1 border rounded text-[11px] font-mono resize-none focus:ring-1 disabled:bg-gray-50 disabled:text-gray-600 ${

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useContext, memo, lazy, Suspense } from 'react';
 import {
-  Search, Edit, Trash2, Filter, X, Plus, Download, Upload,
+  Search, Edit, Trash2, Filter, X, Plus, Download, Upload, Eye,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  CheckCircle2, AlertCircle, FileText
+  CheckCircle2, AlertCircle, FileText, Power, PowerOff, Loader, Ban,
 } from 'lucide-react';
 import { hrAPI } from '../../../../services/api';
 import { AuthContext } from '../../../../context/AuthContext';
@@ -44,9 +44,17 @@ const AssignmentTypeBadge = memo(({ type }) => {
 });
 AssignmentTypeBadge.displayName = 'AssignmentTypeBadge';
 
-const AssignmentRow = memo(({ record, canBulk, selected, toggleSelection, canUpdate, canDelete, openModal, handleDelete }) => {
+const AssignmentRow = memo(({
+  record, canBulk, selected, toggleSelection,
+  canUpdate, canDelete, openModal, handleDelete,
+  handleQuickStatusToggle, handleQuickCancel, togglingIds,
+}) => {
   const isSelected = selected.includes(record.shift_assign_id);
   const formatDate = (date) => date ? new Date(date).toLocaleDateString() : '—';
+  const status = record.status || 'active';
+  const isActive = status === 'active';
+  const isCancelled = status === 'cancelled';
+  const isToggling = togglingIds?.has(record.shift_assign_id);
 
   return (
     <tr className="hover:bg-gray-50 transition-colors">
@@ -55,6 +63,73 @@ const AssignmentRow = memo(({ record, canBulk, selected, toggleSelection, canUpd
           <input type="checkbox" checked={isSelected} onChange={() => toggleSelection(record.shift_assign_id)} className="rounded border-gray-300 text-primary-600 w-3 h-3" />
         </td>
       )}
+
+      {/* ✅ ACTIONS COLUMN — FIRST: View | Edit | Active/Inactive | Cancel | Delete */}
+      <td className={`px-2 py-1 whitespace-nowrap sticky bg-white z-10 ${canBulk ? 'left-6' : 'left-0'}`}>
+        <div className="flex items-center gap-0.5">
+          {/* VIEW */}
+          <button
+            onClick={() => openModal(record, true)}
+            title="View Details"
+            className="inline-flex items-center justify-center w-5 h-5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50 transition-colors"
+          >
+            <Eye className="w-3 h-3" />
+          </button>
+
+          {/* EDIT */}
+          {canUpdate && (
+            <button
+              onClick={() => openModal(record, false)}
+              title="Edit"
+              className="inline-flex items-center justify-center w-5 h-5 text-gray-600 hover:text-gray-900 rounded hover:bg-gray-100 transition-colors"
+            >
+              <Edit className="w-3 h-3" />
+            </button>
+          )}
+
+          {/* ACTIVE / INACTIVE TOGGLE (hidden when cancelled) */}
+          {canUpdate && !isCancelled && (
+            <button
+              onClick={() => handleQuickStatusToggle(record)}
+              disabled={isToggling}
+              title={isActive ? 'Deactivate' : 'Activate'}
+              className={`inline-flex items-center justify-center w-5 h-5 rounded transition-colors ${
+                isToggling ? 'opacity-50 cursor-wait' :
+                isActive ? 'text-green-600 hover:bg-green-50' : 'text-red-600 hover:bg-red-50'
+              }`}
+            >
+              {isToggling ? <Loader className="w-3 h-3 animate-spin" /> :
+               isActive ? <Power className="w-3 h-3" /> : <PowerOff className="w-3 h-3" />}
+            </button>
+          )}
+
+          {/* CANCEL (only for non-cancelled) */}
+          {canUpdate && !isCancelled && (
+            <button
+              onClick={() => handleQuickCancel(record)}
+              disabled={isToggling}
+              title="Cancel assignment"
+              className={`inline-flex items-center justify-center w-5 h-5 rounded transition-colors ${
+                isToggling ? 'opacity-50 cursor-wait' : 'text-amber-600 hover:bg-amber-50'
+              }`}
+            >
+              <Ban className="w-3 h-3" />
+            </button>
+          )}
+
+          {/* DELETE */}
+          {canDelete && (
+            <button
+              onClick={() => handleDelete(record.shift_assign_id)}
+              title="Delete"
+              className="inline-flex items-center justify-center w-5 h-5 text-red-600 hover:text-red-900 rounded hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </td>
+
       <td className="px-2 py-1 whitespace-nowrap text-gray-500">{record.shift_assign_id}</td>
       <td className="px-2 py-1 whitespace-nowrap text-gray-900">
         {record.employee ? `${record.employee.first_name} ${record.employee.last_name}` : 'N/A'}
@@ -77,12 +152,6 @@ const AssignmentRow = memo(({ record, canBulk, selected, toggleSelection, canUpd
       <td className="px-2 py-1 whitespace-nowrap text-gray-500">{record.updated_by || '—'}</td>
       <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-[9px]">{new Date(record.createdAt).toLocaleDateString()}</td>
       <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-[9px]">{new Date(record.updatedAt).toLocaleDateString()}</td>
-      <td className="px-2 py-1 whitespace-nowrap sticky right-0 bg-white z-10">
-        <div className="flex items-center gap-1">
-          {canUpdate && <button onClick={() => openModal(record)} className="text-gray-600 hover:text-gray-900 p-0.5 rounded hover:bg-gray-50"><Edit className="w-3 h-3" /></button>}
-          {canDelete && <button onClick={() => handleDelete(record.shift_assign_id)} className="text-red-600 hover:text-red-900 p-0.5 rounded hover:bg-red-50"><Trash2 className="w-3 h-3" /></button>}
-        </div>
-      </td>
     </tr>
   );
 });
@@ -108,6 +177,7 @@ const ShiftAssignmentManagement = () => {
   const [bulkAction, setBulkAction] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -115,6 +185,7 @@ const ShiftAssignmentManagement = () => {
   const [selectedShiftFilter, setSelectedShiftFilter] = useState(null);
   const [showEmployeeFilterModal, setShowEmployeeFilterModal] = useState(false);
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(null);
+  const [togglingIds, setTogglingIds] = useState(new Set());
 
   const [filters, setFilters] = useState({
     search: '',
@@ -122,22 +193,18 @@ const ShiftAssignmentManagement = () => {
     shift_id: 'all',
     emp_id: 'all',
     page: 1,
-    limit: 15,
+    limit: 50,
   });
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 15,
+    limit: 50,
     totalItems: 0,
     totalPages: 0,
   });
 
   const [confirmation, setConfirmation] = useState({
-    show: false,
-    title: '',
-    message: '',
-    type: '',
-    onConfirm: null,
+    show: false, title: '', message: '', type: '', onConfirm: null,
   });
 
   const showToast = useCallback((message, type = 'success') => {
@@ -202,7 +269,7 @@ const ShiftAssignmentManagement = () => {
       const headers = [
         'ID', 'Employee', 'Shift', 'Date', 'Effective From', 'Effective To',
         'Assignment Type', 'Reason', 'Status', 'Approved By', 'Approved At',
-        'Created By', 'Updated By', 'Created At', 'Updated At'
+        'Created By', 'Updated By', 'Created At', 'Updated At',
       ];
       const rows = data.map(r => [
         r.shift_assign_id,
@@ -281,32 +348,60 @@ const ShiftAssignmentManagement = () => {
 
   const handleBulkAction = useCallback(async () => {
     if (!canBulk || !bulkAction || !selected.length) return;
+    const ids = [...selected];
+    const snapshot = records;
+    const snapshotCounts = counts;
     try {
       if (bulkAction === 'delete') {
         showConfirmation(
           'Delete Assignments',
-          `Are you sure you want to delete ${selected.length} assignment(s)?`,
+          `Are you sure you want to delete ${ids.length} assignment(s)?`,
           'bulkDelete',
           async () => {
-            await Promise.all(selected.map(id => hrAPI.deleteShiftAssignment(id)));
+            setRecords(prev => prev.filter(r => !ids.includes(r.shift_assign_id)));
+            setCounts(prev => ({ ...prev, total: Math.max(0, (prev.total || 0) - ids.length) }));
             setSelected([]);
             setBulkAction('');
-            fetchRecords();
-            showToast(`Deleted ${selected.length} assignments`, 'success');
+            try {
+              await Promise.all(ids.map(id => hrAPI.deleteShiftAssignment(id)));
+              showToast(`Deleted ${ids.length} assignments`, 'success');
+            } catch (err) {
+              setRecords(snapshot);
+              setCounts(snapshotCounts);
+              showToast('Bulk delete failed', 'error');
+            }
           }
         );
       } else {
-        await Promise.all(selected.map(id => hrAPI.updateShiftAssignment(id, { status: bulkAction })));
+        // Optimistic status change
+        setRecords(prev => prev.map(r => ids.includes(r.shift_assign_id) ? { ...r, status: bulkAction } : r));
+        setCounts(prev => {
+          const next = { ...prev, byStatus: { ...(prev.byStatus || {}) } };
+          ids.forEach(id => {
+            const old = snapshot.find(r => r.shift_assign_id === id);
+            if (old?.status && next.byStatus[old.status] != null) {
+              next.byStatus[old.status] = Math.max(0, next.byStatus[old.status] - 1);
+            }
+            next.byStatus[bulkAction] = (next.byStatus[bulkAction] || 0) + 1;
+          });
+          return next;
+        });
         setSelected([]);
         setBulkAction('');
-        fetchRecords();
-        showToast(`Updated ${selected.length} assignments to "${bulkAction}"`, 'success');
+        try {
+          await Promise.all(ids.map(id => hrAPI.updateShiftAssignment(id, { status: bulkAction })));
+          showToast(`Updated ${ids.length} assignments to "${bulkAction}"`, 'success');
+        } catch (err) {
+          setRecords(snapshot);
+          setCounts(snapshotCounts);
+          showToast('Bulk update failed', 'error');
+        }
       }
     } catch (err) {
       showToast('Bulk action failed', 'error');
       console.error(err);
     }
-  }, [canBulk, bulkAction, selected, fetchRecords, showToast]);
+  }, [canBulk, bulkAction, selected, records, counts, showToast]);
 
   const handleDelete = useCallback((id) => {
     if (!canDelete) return showToast('No permission to delete', 'error');
@@ -316,23 +411,107 @@ const ShiftAssignmentManagement = () => {
       `Delete assignment for ${record?.employee?.first_name || 'Unknown'}? This cannot be undone.`,
       'delete',
       async () => {
-        await hrAPI.deleteShiftAssignment(id);
-        fetchRecords();
-        showToast('Assignment deleted', 'success');
+        const snapshot = records;
+        const snapshotCounts = counts;
+        setRecords(prev => prev.filter(r => r.shift_assign_id !== id));
+        setCounts(prev => {
+          const next = { ...prev, byStatus: { ...(prev.byStatus || {}) } };
+          next.total = Math.max(0, (next.total || 0) - 1);
+          if (record?.status && next.byStatus[record.status] != null) {
+            next.byStatus[record.status] = Math.max(0, next.byStatus[record.status] - 1);
+          }
+          return next;
+        });
+        try {
+          await hrAPI.deleteShiftAssignment(id);
+          showToast('Assignment deleted', 'success');
+        } catch (err) {
+          setRecords(snapshot);
+          setCounts(snapshotCounts);
+          showToast('Failed to delete', 'error');
+        }
       }
     );
-  }, [canDelete, records, showToast, fetchRecords]);
+  }, [canDelete, records, counts, showToast]);
 
-  const openModal = useCallback((record = null) => {
-    if (record && !canUpdate) return showToast('No permission to edit', 'error');
+  const handleQuickStatusToggle = useCallback(async (record) => {
+    if (!canUpdate) return showToast('No permission to update status', 'error');
+    const id = record.shift_assign_id;
+    const currentStatus = record.status || 'active';
+    const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
+
+    setRecords(prev => prev.map(r => r.shift_assign_id === id ? { ...r, status: nextStatus } : r));
+    setCounts(prev => {
+      const next = { ...prev, byStatus: { ...(prev.byStatus || {}) } };
+      if (next.byStatus[currentStatus] != null) next.byStatus[currentStatus] = Math.max(0, next.byStatus[currentStatus] - 1);
+      next.byStatus[nextStatus] = (next.byStatus[nextStatus] || 0) + 1;
+      return next;
+    });
+
+    setTogglingIds(prev => new Set(prev).add(id));
+    try {
+      await hrAPI.updateShiftAssignment(id, { status: nextStatus });
+      showToast(`Assignment ${nextStatus === 'active' ? 'activated' : 'deactivated'}`, 'success');
+    } catch (err) {
+      setRecords(prev => prev.map(r => r.shift_assign_id === id ? { ...r, status: currentStatus } : r));
+      setCounts(prev => {
+        const next = { ...prev, byStatus: { ...(prev.byStatus || {}) } };
+        if (next.byStatus[nextStatus] != null) next.byStatus[nextStatus] = Math.max(0, next.byStatus[nextStatus] - 1);
+        next.byStatus[currentStatus] = (next.byStatus[currentStatus] || 0) + 1;
+        return next;
+      });
+      showToast('Failed to change status', 'error');
+    } finally {
+      setTogglingIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+    }
+  }, [canUpdate, showToast]);
+
+  const handleQuickCancel = useCallback((record) => {
+    if (!canUpdate) return showToast('No permission to cancel', 'error');
+    const id = record.shift_assign_id;
+    const currentStatus = record.status || 'active';
+    if (currentStatus === 'cancelled') return;
+
+    showConfirmation(
+      'Cancel Assignment',
+      `Cancel assignment for ${record?.employee?.first_name || 'Unknown'}?`,
+      'cancel',
+      async () => {
+        const snapshot = records;
+        const snapshotCounts = counts;
+
+        setRecords(prev => prev.map(r => r.shift_assign_id === id ? { ...r, status: 'cancelled' } : r));
+        setCounts(prev => {
+          const next = { ...prev, byStatus: { ...(prev.byStatus || {}) } };
+          if (next.byStatus[currentStatus] != null) next.byStatus[currentStatus] = Math.max(0, next.byStatus[currentStatus] - 1);
+          next.byStatus.cancelled = (next.byStatus.cancelled || 0) + 1;
+          return next;
+        });
+
+        try {
+          await hrAPI.updateShiftAssignment(id, { status: 'cancelled' });
+          showToast('Assignment cancelled', 'success');
+        } catch (err) {
+          setRecords(snapshot);
+          setCounts(snapshotCounts);
+          showToast('Failed to cancel', 'error');
+        }
+      }
+    );
+  }, [canUpdate, records, counts, showToast]);
+
+  const openModal = useCallback((record = null, readOnlyMode = false) => {
+    if (record && !canUpdate && !readOnlyMode) return showToast('No permission to edit', 'error');
     if (!record && !canCreate) return showToast('No permission to create', 'error');
     setEditingRecord(record);
+    setIsReadOnly(readOnlyMode);
     setShowModal(true);
   }, [canUpdate, canCreate, showToast]);
 
   const closeModal = useCallback(() => {
     setShowModal(false);
     setEditingRecord(null);
+    setIsReadOnly(false);
   }, []);
 
   const handleRecordSaved = useCallback(() => {
@@ -372,9 +551,8 @@ const ShiftAssignmentManagement = () => {
   }, []);
 
   const handleEmployeeFilterSelect = useCallback((employee) => {
-    const empId = employee.emp_id;
     setSelectedEmployeeFilter(employee);
-    setFilters(prev => ({ ...prev, emp_id: empId, page: 1 }));
+    setFilters(prev => ({ ...prev, emp_id: employee.emp_id, page: 1 }));
     setShowEmployeeFilterModal(false);
   }, []);
 
@@ -397,14 +575,12 @@ const ShiftAssignmentManagement = () => {
     showToast('Filters cleared', 'info');
   }, [showToast]);
 
-  const hasActiveFilters = useMemo(() => {
-    return (
-      filters.search !== '' ||
-      filters.status !== 'all' ||
-      filters.shift_id !== 'all' ||
-      filters.emp_id !== 'all'
-    );
-  }, [filters]);
+  const hasActiveFilters = useMemo(() => (
+    filters.search !== '' ||
+    filters.status !== 'all' ||
+    filters.shift_id !== 'all' ||
+    filters.emp_id !== 'all'
+  ), [filters]);
 
   const tabs = useMemo(() => {
     const allCount = counts.total || 0;
@@ -413,7 +589,7 @@ const ShiftAssignmentManagement = () => {
       { id: 'all', name: 'All', count: allCount, icon: Filter },
       { id: 'active', name: 'Active', count: statusCounts.active || 0, icon: CheckCircle2 },
       { id: 'inactive', name: 'Inactive', count: statusCounts.inactive || 0, icon: AlertCircle },
-      { id: 'cancelled', name: 'Cancelled', count: statusCounts.cancelled || 0, icon: X },
+      { id: 'cancelled', name: 'Cancelled', count: statusCounts.cancelled || 0, icon: Ban },
     ];
   }, [counts]);
 
@@ -425,16 +601,17 @@ const ShiftAssignmentManagement = () => {
   }, []);
 
   return (
-    <div className="space-y-2.5 p-2.5">
+    <div className="flex flex-col h-full p-3 pt-0 gap-3 overflow-hidden">
       <Suspense fallback={null}>
         {toast && <Toast toast={toast} onClose={clearToast} />}
       </Suspense>
 
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-1.5">
-        <p className="text-[10px] text-gray-600">Manage shift assignments</p>
+      {/* Toolbar — pinned */}
+      <div className="flex-shrink-0 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-1.5">
+        <p className="text-xs text-gray-600">Manage shift assignments</p>
         <div className="flex gap-1.5">
           {canImport && (
-            <div className="flex gap-1">
+            <div className="flex gap-0.5">
               <button
                 onClick={() => {
                   const csvContent = sampleAssignments.map(row => row.map(f => `"${f}"`).join(',')).join('\n');
@@ -445,51 +622,52 @@ const ShiftAssignmentManagement = () => {
                   link.click();
                   showToast('Sample CSV downloaded', 'info');
                 }}
-                className="flex items-center gap-1 px-2 py-0.5 border border-gray-300 rounded text-[10px] text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-1 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50"
               >
                 <FileText className="w-3 h-3" /> Sample
               </button>
-              <button onClick={() => setShowImportModal(true)} className="flex items-center gap-1 px-2 py-0.5 border border-gray-300 rounded text-[10px] text-gray-700 hover:bg-gray-50">
+              <button onClick={() => setShowImportModal(true)} className="flex items-center gap-1 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50">
                 <Upload className="w-3 h-3" /> Import
               </button>
             </div>
           )}
           {canExport && (
-            <button onClick={exportToCSV} disabled={exportLoading} className="flex items-center gap-1 px-2 py-0.5 border border-gray-300 rounded text-[10px] text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            <button onClick={exportToCSV} disabled={exportLoading} className="flex items-center gap-1 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               <Download className="w-3 h-3" /> {exportLoading ? 'Exporting...' : 'Export'}
             </button>
           )}
           {canCreate && (
-            <button onClick={() => openModal()} className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white rounded font-medium text-[10px] shadow-sm">
+            <button onClick={() => openModal()} className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white rounded font-medium text-xs shadow-sm">
               <Plus className="w-3.5 h-3.5" /> New Assignment
             </button>
           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0">
-        <div className="p-2 border-b border-gray-200">
+      {/* Card */}
+      <div className="flex-1 min-h-0 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col">
+        {/* Card header — pinned */}
+        <div className="flex-shrink-0 p-2 border-b border-gray-200">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-1.5">
             <div className="flex space-x-0.5 bg-gray-100 p-0.5 rounded">
               {tabs.map(tab => {
                 const Icon = tab.icon;
+                const active = (tab.id === 'all' && filters.status === 'all') || filters.status === tab.id;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => handleFilterChange('status', tab.id)}
-                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all duration-200 flex items-center gap-0.5 ${
-                      (tab.id === 'all' && filters.status === 'all') || filters.status === tab.id
+                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all duration-200 flex items-center gap-0.5 ${active
                         ? 'bg-white text-primary-600 shadow-xs border border-primary-200'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-                    }`}
+                      }`}
                   >
-                    <Icon className={`w-3 h-3 ${(tab.id === 'all' && filters.status === 'all') || filters.status === tab.id ? 'text-primary-600' : ''}`} />
+                    <Icon className={`w-3 h-3 ${active ? 'text-primary-600' : ''}`} />
                     {tab.name}
-                    <span className={`px-0.5 py-0.5 text-[9px] rounded-full min-w-3 flex items-center justify-center ${
-                      (tab.id === 'all' && filters.status === 'all') || filters.status === tab.id
+                    <span className={`px-0.5 py-0.5 text-[9px] rounded-full min-w-3 flex items-center justify-center ${active
                         ? 'bg-primary-100 text-primary-700'
                         : 'bg-gray-200 text-gray-700'
-                    }`}>{tab.count}</span>
+                      }`}>{tab.count}</span>
                   </button>
                 );
               })}
@@ -498,15 +676,15 @@ const ShiftAssignmentManagement = () => {
             <div className="flex flex-wrap items-center gap-1.5">
               {canBulk && selected.length > 0 && (
                 <div className="flex items-center gap-1 bg-primary-50 rounded-md px-1.5 py-0.5">
-                  <select value={bulkAction} onChange={e => setBulkAction(e.target.value)} className="text-[9px] border border-primary-300 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-primary-500 bg-white">
+                  <select value={bulkAction} onChange={e => setBulkAction(e.target.value)} className="text-[10px] border border-primary-300 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-primary-500 bg-white">
                     <option value="">Bulk</option>
                     <option value="active">Set Active</option>
                     <option value="inactive">Set Inactive</option>
                     <option value="cancelled">Set Cancelled</option>
                     <option value="delete">Delete</option>
                   </select>
-                  <button onClick={handleBulkAction} disabled={!bulkAction} className="px-2 py-0.5 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 text-[9px] font-medium">Apply</button>
-                  <span className="text-[9px] text-primary-700 font-medium">{selected.length} sel</span>
+                  <button onClick={handleBulkAction} disabled={!bulkAction} className="px-1.5 py-0.5 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 text-[10px] font-medium">Apply</button>
+                  <span className="text-[10px] text-primary-700 font-medium">{selected.length} sel</span>
                 </div>
               )}
 
@@ -570,95 +748,103 @@ const ShiftAssignmentManagement = () => {
               </select>
 
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-                <input type="text" placeholder="Search..." value={filters.search} onChange={e => handleSearch(e.target.value)} className="pl-6 pr-2 py-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 w-full sm:w-40 text-[10px]" />
+                <Search className="absolute left-1.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                <input type="text" placeholder="Search assignments..." value={filters.search} onChange={e => handleSearch(e.target.value)} className="pl-6 pr-2 py-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 w-full sm:w-40 text-[10px]" />
               </div>
+
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="text-[10px] text-primary-600 hover:text-primary-800">Clear</button>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden flex flex-col">
+        {/* Table body — the ONLY scroll area */}
+        <div className="flex-1 min-h-0 overflow-auto">
           {loading ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-gray-500">Loading...</div>
+            <div className="flex items-center justify-center p-8 text-sm text-gray-500">Loading...</div>
           ) : error ? (
-            <div className="flex-1 flex items-center justify-center p-4">
-              <div className="text-center"><p className="text-xs text-red-600">{error}</p><button onClick={fetchRecords} className="mt-1 px-2 py-0.5 bg-primary-600 text-white rounded text-[10px]">Retry</button></div>
+            <div className="flex items-center justify-center p-6">
+              <div className="text-center"><p className="text-sm text-red-600">{error}</p><button onClick={fetchRecords} className="mt-2 px-3 py-1 bg-primary-600 text-white rounded text-xs">Retry</button></div>
             </div>
           ) : records.length > 0 ? (
-            <div className="flex-1 overflow-auto">
-              <table className="w-full min-w-max text-[10px]">
-                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
-                  <tr>
-                    {canBulk && (
-                      <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider w-6 sticky left-0 bg-gray-50 z-20">
-                        <input type="checkbox" checked={selected.length === records.length && records.length > 0} onChange={toggleSelectAll} className="rounded border-gray-300 text-primary-600 w-3 h-3" />
-                      </th>
-                    )}
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Shift</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Effective From</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Effective To</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Reason</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Approved By</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Approved At</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">CBy</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">UBy</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Updated</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-20">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {records.map(record => (
-                    <AssignmentRow
-                      key={record.shift_assign_id}
-                      record={record}
-                      canBulk={canBulk}
-                      selected={selected}
-                      toggleSelection={toggleSelection}
-                      canUpdate={canUpdate}
-                      canDelete={canDelete}
-                      openModal={openModal}
-                      handleDelete={handleDelete}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center p-4">
-              <div className="text-center"><p className="text-xs text-gray-600">No shift assignments found.</p></div>
-            </div>
-          )}
+            <table className="w-full min-w-max text-[10px]">
+              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                <tr>
+                  {canBulk && (
+                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider w-6 sticky left-0 bg-gray-50 z-20">
+                      <input type="checkbox" checked={selected.length === records.length && records.length > 0} onChange={toggleSelectAll} className="rounded border-gray-300 text-primary-600 w-3 h-3" />
+                    </th>
+                  )}
 
-          {pagination.totalPages > 1 && (
-            <div className="flex-shrink-0 border-t border-gray-200 bg-white p-1.5 flex flex-col sm:flex-row items-center justify-between gap-1">
-              <div className="text-[9px] text-gray-600">
-                Showing {(filters.page - 1) * filters.limit + 1} to {Math.min(filters.page * filters.limit, pagination.totalItems)} of {pagination.totalItems}
-              </div>
-              <div className="flex items-center space-x-0.5">
-                <button type="button" onClick={() => handlePageChange(1)} disabled={filters.page === 1} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronsLeft className="w-3 h-3" /></button>
-                <button type="button" onClick={() => handlePageChange(filters.page - 1)} disabled={filters.page === 1} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronLeft className="w-3 h-3" /></button>
-                {getVisiblePages(filters.page, pagination.totalPages).map(p => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => handlePageChange(p)}
-                    className={`w-5 h-5 text-[9px] rounded border transition-colors ${filters.page === p ? 'bg-primary-600 text-white border-primary-600' : 'border-gray-300 hover:bg-gray-50 text-gray-700'}`}
-                  >
-                    {p}
-                  </button>
+                  {/* ✅ ACTIONS COLUMN — FIRST */}
+                  <th className={`px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px] sticky bg-gray-50 z-20 ${canBulk ? 'left-6' : 'left-0'}`}>Actions</th>
+
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">ID</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Employee</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Shift</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Date</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Effective From</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Effective To</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Type</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Reason</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Status</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Approved By</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Approved At</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">CBy</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">UBy</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Created</th>
+                  <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Updated</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {records.map(record => (
+                  <AssignmentRow
+                    key={record.shift_assign_id}
+                    record={record}
+                    canBulk={canBulk}
+                    selected={selected}
+                    toggleSelection={toggleSelection}
+                    canUpdate={canUpdate}
+                    canDelete={canDelete}
+                    openModal={openModal}
+                    handleDelete={handleDelete}
+                    handleQuickStatusToggle={handleQuickStatusToggle}
+                    handleQuickCancel={handleQuickCancel}
+                    togglingIds={togglingIds}
+                  />
                 ))}
-                <button type="button" onClick={() => handlePageChange(filters.page + 1)} disabled={filters.page === pagination.totalPages} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronRight className="w-3 h-3" /></button>
-                <button type="button" onClick={() => handlePageChange(pagination.totalPages)} disabled={filters.page === pagination.totalPages} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronsRight className="w-3 h-3" /></button>
-              </div>
+              </tbody>
+            </table>
+          ) : (
+            <div className="flex items-center justify-center p-6">
+              <div className="text-center"><p className="text-sm text-gray-600">No shift assignments found.</p></div>
             </div>
           )}
         </div>
+
+        {/* Pagination footer — pinned */}
+        {pagination.totalPages > 1 && (
+          <div className="flex-shrink-0 border-t border-gray-200 bg-white p-2 flex flex-col sm:flex-row items-center justify-between gap-1.5">
+            <div className="text-[10px] text-gray-600">Showing {(filters.page - 1) * filters.limit + 1} to {Math.min(filters.page * filters.limit, pagination.totalItems)} of {pagination.totalItems}</div>
+            <div className="flex items-center space-x-0.5">
+              <button type="button" onClick={() => handlePageChange(1)} disabled={filters.page === 1} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronsLeft className="w-3 h-3" /></button>
+              <button type="button" onClick={() => handlePageChange(filters.page - 1)} disabled={filters.page === 1} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronLeft className="w-3 h-3" /></button>
+              {getVisiblePages(filters.page, pagination.totalPages).map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => handlePageChange(p)}
+                  className={`w-6 h-6 text-[10px] rounded border transition-colors ${filters.page === p ? 'bg-primary-600 text-white border-primary-600' : 'border-gray-300 hover:bg-gray-50 text-gray-700'}`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button type="button" onClick={() => handlePageChange(filters.page + 1)} disabled={filters.page === pagination.totalPages} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronRight className="w-3 h-3" /></button>
+              <button type="button" onClick={() => handlePageChange(pagination.totalPages)} disabled={filters.page === pagination.totalPages} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronsRight className="w-3 h-3" /></button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Suspense fallback={null}>
@@ -690,6 +876,7 @@ const ShiftAssignmentManagement = () => {
             record={editingRecord}
             onClose={closeModal}
             onSaved={handleRecordSaved}
+            readOnly={isReadOnly}
           />
         )}
       </Suspense>

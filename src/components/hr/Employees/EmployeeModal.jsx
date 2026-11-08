@@ -829,7 +829,8 @@ const EmployeeModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-1 z-50">
-      <div className="bg-white rounded-md max-w-[1750px] w-full h-[95vh] flex flex-col shadow-xl">
+      {/* Changed h-[95vh] to max-h-[95vh] and flex flex-col to shrink to content */}
+      <div className="bg-white rounded-md max-w-[1750px] w-full max-h-[95vh] flex flex-col shadow-xl">
 
         {/* HEADER */}
         <div className="flex-shrink-0 flex items-center justify-between p-2.5 border-b">
@@ -865,7 +866,7 @@ const EmployeeModal = ({
           </div>
         </div>
 
-        {/* BODY */}
+        {/* BODY - flex-1 and overflow-y-auto ensures it scrolls only if content exceeds max-height */}
         <div className="flex-1 overflow-y-auto">
           <div className="p-2.5 space-y-2.5">
 

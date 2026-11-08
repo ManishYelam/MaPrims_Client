@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
-import { X, Save, User, Clock } from 'lucide-react';
+import { X, Save, User, Clock, Eye } from 'lucide-react';
 import { hrAPI } from '../../../../services/api';
 import toast from 'react-hot-toast';
 import * as yup from 'yup';
@@ -18,7 +18,7 @@ const assignmentSchema = yup.object().shape({
   reason: yup.string().nullable(),
 });
 
-const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
+const ShiftAssignmentModal = ({ show, record, onClose, onSaved, readOnly = false }) => {
   const [saveLoading, setSaveLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
   const [apiError, setApiError] = useState(null);
@@ -40,8 +40,8 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
     reason: '',
   });
 
-  // Determine if we are in edit mode
   const isEdit = !!record;
+  const isDisabled = saveLoading || readOnly;
 
   useEffect(() => {
     if (record) {
@@ -55,16 +55,8 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
         status: record.status || 'active',
         reason: record.reason || '',
       });
-      if (record.employee) {
-        setSelectedEmployee(record.employee);
-      } else {
-        setSelectedEmployee(null);
-      }
-      if (record.shift) {
-        setSelectedShift(record.shift);
-      } else {
-        setSelectedShift(null);
-      }
+      setSelectedEmployee(record.employee || null);
+      setSelectedShift(record.shift || null);
     } else {
       setFormData({
         emp_id: '',
@@ -81,7 +73,7 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
     }
     setValidationErrors({});
     setApiError(null);
-  }, [record]);
+  }, [record, show]);
 
   const validateForm = useCallback(async () => {
     try {
@@ -103,14 +95,16 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
   }, [formData]);
 
   const handleInputChange = useCallback((field, value) => {
+    if (readOnly) return;
     setFormData(prev => ({ ...prev, [field]: value }));
     if (validationErrors[field]) {
       setValidationErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
     }
     if (apiError) setApiError(null);
-  }, [validationErrors, apiError]);
+  }, [validationErrors, apiError, readOnly]);
 
   const handleEmployeeSelect = useCallback((emp) => {
+    if (readOnly) return;
     if (emp) {
       setSelectedEmployee(emp);
       handleInputChange('emp_id', emp.emp_id);
@@ -119,9 +113,10 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
       handleInputChange('emp_id', '');
     }
     setShowEmployeeModal(false);
-  }, [handleInputChange]);
+  }, [handleInputChange, readOnly]);
 
   const handleShiftSelect = useCallback((shift) => {
+    if (readOnly) return;
     if (shift) {
       setSelectedShift(shift);
       handleInputChange('shift_id', shift.id);
@@ -130,9 +125,10 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
       handleInputChange('shift_id', '');
     }
     setShowShiftModal(false);
-  }, [handleInputChange]);
+  }, [handleInputChange, readOnly]);
 
   const handleSave = useCallback(async () => {
+    if (readOnly) return;
     const isValid = await validateForm();
     if (!isValid) return;
 
@@ -160,7 +156,7 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
     } finally {
       setSaveLoading(false);
     }
-  }, [formData, record, onSaved, validateForm]);
+  }, [formData, record, onSaved, validateForm, readOnly]);
 
   const displayEmployeeText = useMemo(() => {
     if (selectedEmployee) {
@@ -176,19 +172,52 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
     return 'Select Shift';
   }, [selectedShift]);
 
+  const inputCls = 'w-full px-2 py-1 border rounded text-xs focus:ring-1 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-600';
+  const pickerCls = `flex-1 px-2 py-1 border rounded text-xs flex items-center justify-between ${
+    isDisabled || isEdit ? 'cursor-not-allowed bg-gray-100' : 'bg-white cursor-pointer hover:bg-gray-50'
+  }`;
+
   if (!show) return null;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-1 z-50">
-      <div className="bg-white rounded-md max-w-lg w-full h-[85vh] flex flex-col shadow-xl">
+      {/* max-h instead of fixed h so the modal only grows to fit its content */}
+      <div className="bg-white rounded-md max-w-lg w-full max-h-[92vh] flex flex-col shadow-xl">
+        {/* HEADER — Save + X only (no footer buttons) */}
         <div className="flex-shrink-0 flex items-center justify-between p-2.5 border-b">
-          <h2 className="text-sm font-semibold">{record ? 'Edit Shift Assignment' : 'New Shift Assignment'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1" disabled={saveLoading}>
-            <X className="w-4 h-4" />
-          </button>
+          <div>
+            <h2 className="text-sm font-semibold flex items-center gap-2">
+              {readOnly
+                ? <><Eye className="w-4 h-4 text-blue-600" /> View Shift Assignment</>
+                : (record ? 'Edit Shift Assignment' : 'New Shift Assignment')}
+            </h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">
+              {record ? `Assignment #${record.shift_assign_id}` : 'Enter assignment details'}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {!readOnly && (
+              <button
+                onClick={handleSave}
+                className="px-2.5 py-1 text-xs border rounded bg-primary-600 text-white hover:bg-primary-700 flex items-center gap-1 disabled:opacity-60"
+                disabled={saveLoading}
+              >
+                <Save className="w-3 h-3" /> {saveLoading ? 'Saving...' : 'Save'}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-red-500 p-1.5 rounded hover:bg-red-50 transition-colors"
+              disabled={saveLoading}
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {/* BODY — min-h-0 lets it shrink/scroll inside max-h parent */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
           {apiError && (
             <div className="bg-red-50 border-l-4 border-red-500 p-2.5 rounded-md flex items-start justify-between">
               <span className="text-xs text-red-700">{apiError}</span>
@@ -203,18 +232,15 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
               </label>
               <div className="flex items-center gap-1">
                 <div
-                  className={`flex-1 px-2 py-1 border rounded text-xs bg-white flex items-center justify-between ${
-                    !isEdit && !saveLoading ? 'cursor-pointer hover:bg-gray-50' : 'cursor-not-allowed bg-gray-100'
-                  }`}
-                  onClick={() => !saveLoading && !isEdit && setShowEmployeeModal(true)}
+                  className={pickerCls}
+                  onClick={() => !isDisabled && !isEdit && setShowEmployeeModal(true)}
                 >
                   <span className={formData.emp_id ? 'text-gray-900' : 'text-gray-400'}>
                     {displayEmployeeText}
                   </span>
                   <User className="w-3 h-3 text-gray-400" />
                 </div>
-                {/* Show clear button only when not editing and employee is selected */}
-                {!isEdit && formData.emp_id && (
+                {!isEdit && !readOnly && formData.emp_id && (
                   <button
                     onClick={() => { handleInputChange('emp_id', ''); setSelectedEmployee(null); }}
                     className="p-0.5 text-gray-400 hover:text-red-600"
@@ -234,18 +260,15 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
               </label>
               <div className="flex items-center gap-1">
                 <div
-                  className={`flex-1 px-2 py-1 border rounded text-xs bg-white flex items-center justify-between ${
-                    !isEdit && !saveLoading ? 'cursor-pointer hover:bg-gray-50' : 'cursor-not-allowed bg-gray-100'
-                  }`}
-                  onClick={() => !saveLoading && !isEdit && setShowShiftModal(true)}
+                  className={pickerCls}
+                  onClick={() => !isDisabled && !isEdit && setShowShiftModal(true)}
                 >
                   <span className={formData.shift_id ? 'text-gray-900' : 'text-gray-400'}>
                     {displayShiftText}
                   </span>
                   <Clock className="w-3 h-3 text-gray-400" />
                 </div>
-                {/* Show clear button only when not editing and shift is selected */}
-                {!isEdit && formData.shift_id && (
+                {!isEdit && !readOnly && formData.shift_id && (
                   <button
                     onClick={() => { handleInputChange('shift_id', ''); setSelectedShift(null); }}
                     className="p-0.5 text-gray-400 hover:text-red-600"
@@ -266,8 +289,8 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
               type="date"
               value={formData.date}
               onChange={e => handleInputChange('date', e.target.value)}
-              className={`w-full px-2 py-1 border rounded text-xs focus:ring-1 focus:ring-primary-500 ${validationErrors.date ? 'border-red-500' : ''}`}
-              disabled={saveLoading || isEdit} // Disable date in edit mode
+              className={`${inputCls} ${validationErrors.date ? 'border-red-500' : ''}`}
+              disabled={isDisabled || isEdit}
             />
             {validationErrors.date && <p className="text-[9px] text-red-600 mt-0.5">{validationErrors.date}</p>}
           </div>
@@ -279,8 +302,8 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
                 type="date"
                 value={formData.effective_from}
                 onChange={e => handleInputChange('effective_from', e.target.value)}
-                className="w-full px-2 py-1 border rounded text-xs focus:ring-1 focus:ring-primary-500"
-                disabled={saveLoading} // Editable in edit mode
+                className={inputCls}
+                disabled={isDisabled}
               />
             </div>
             <div>
@@ -289,8 +312,8 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
                 type="date"
                 value={formData.effective_to}
                 onChange={e => handleInputChange('effective_to', e.target.value)}
-                className="w-full px-2 py-1 border rounded text-xs focus:ring-1 focus:ring-primary-500"
-                disabled={saveLoading} // Editable in edit mode
+                className={inputCls}
+                disabled={isDisabled}
               />
             </div>
           </div>
@@ -300,8 +323,8 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
             <select
               value={formData.assignment_type}
               onChange={e => handleInputChange('assignment_type', e.target.value)}
-              className="w-full px-2 py-1 border rounded text-xs focus:ring-1 focus:ring-primary-500"
-              disabled={saveLoading || isEdit} // Disable in edit mode
+              className={inputCls}
+              disabled={isDisabled || isEdit}
             >
               <option value="regular">Regular</option>
               <option value="temporary">Temporary</option>
@@ -313,12 +336,12 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
           <div>
             <label className="text-[10px] font-medium text-gray-700 mb-0.5 block">Reason</label>
             <textarea
-              rows={2}
+              rows={readOnly ? 1 : 2}
               value={formData.reason}
               onChange={e => handleInputChange('reason', e.target.value)}
-              className="w-full px-2 py-1 border rounded text-xs focus:ring-1 focus:ring-primary-500 resize-none"
+              className={`${inputCls} resize-none`}
               placeholder="Optional reason for this assignment"
-              disabled={saveLoading || isEdit} // Disable in edit mode
+              disabled={isDisabled || isEdit}
             />
           </div>
 
@@ -327,8 +350,8 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
             <select
               value={formData.status}
               onChange={e => handleInputChange('status', e.target.value)}
-              className="w-full px-2 py-1 border rounded text-xs focus:ring-1 focus:ring-primary-500"
-              disabled={saveLoading} // Editable in edit mode
+              className={inputCls}
+              disabled={isDisabled}
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -337,30 +360,17 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
           </div>
         </div>
 
-        <div className="flex-shrink-0 flex items-center justify-between p-2.5 border-t bg-gray-50">
+        {/* FOOTER — only last-updated hint, no buttons */}
+        <div className="flex-shrink-0 flex items-center justify-end px-2.5 py-1.5 border-t bg-gray-50">
           <p className="text-[10px] text-gray-500">
-            {record ? `Editing #${record.shift_assign_id}` : 'New assignment'}
+            {record
+              ? `Last updated: ${record.updatedAt ? new Date(record.updatedAt).toLocaleDateString() : '—'}`
+              : 'New assignment'}
           </p>
-          <div className="flex gap-1.5">
-            <button
-              onClick={onClose}
-              className="px-2.5 py-1 text-xs border rounded bg-white hover:bg-gray-50"
-              disabled={saveLoading}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-2.5 py-1 text-xs border rounded bg-primary-600 text-white hover:bg-primary-700 flex items-center gap-1"
-              disabled={saveLoading}
-            >
-              <Save className="w-3 h-3" /> {saveLoading ? 'Saving...' : 'Save'}
-            </button>
-          </div>
         </div>
 
         <Suspense fallback={null}>
-          {showEmployeeModal && (
+          {showEmployeeModal && !readOnly && (
             <EmployeeSelectionModal
               show={showEmployeeModal}
               onClose={() => setShowEmployeeModal(false)}
@@ -372,7 +382,7 @@ const ShiftAssignmentModal = ({ show, record, onClose, onSaved }) => {
         </Suspense>
 
         <Suspense fallback={null}>
-          {showShiftModal && (
+          {showShiftModal && !readOnly && (
             <ShiftSelectionModal
               show={showShiftModal}
               onClose={() => setShowShiftModal(false)}
