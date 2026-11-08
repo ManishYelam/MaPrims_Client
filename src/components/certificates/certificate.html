@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate Templates & Components</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #16a085;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
+            --gold: #c0a878;
+            --silver: #b8b8b8;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        h2 {
+            font-size: 1.8rem;
+            margin: 1.5rem 0 1rem;
+            color: var(--primary);
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 0.5rem;
+        }
+        
+        h3 {
+            font-size: 1.4rem;
+            margin: 1.2rem 0 0.8rem;
+            color: var(--secondary);
+        }
+        
+        p {
+            margin-bottom: 1rem;
+        }
+        
+        .intro {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        
+        .certificate-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .cert-type-card {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .cert-type-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card-header {
+            background: var(--primary);
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        .card-body {
+            padding: 1.5rem;
+        }
+        
+        .components-list {
+            list-style-type: none;
+        }
+        
+        .components-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .components-list li:before {
+            content: "✓";
+            color: var(--accent);
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+        
+        .templates-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        
+        .template-container {
+            margin: 2rem 0;
+            padding: 2rem;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        
+        .certificate {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
+        
+        .completion-cert {
+            border: 15px solid var(--accent);
+        }
+        
+        .achievement-cert {
+            border: 15px double var(--gold);
+            background: linear-gradient(135deg, #fff9e6, white);
+        }
+        
+        .professional-cert {
+            border: 5px double var(--primary);
+        }
+        
+        .cert-title {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        
+        .recipient-name {
+            font-size: 2rem;
+            margin: 1.5rem 0;
+            color: var(--secondary);
+            text-decoration: underline;
+        }
+        
+        .cert-details {
+            margin: 1.5rem 0;
+            font-size: 1.2rem;
+        }
+        
+        .signature-area {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 2px solid #ddd;
+        }
+        
+        .signature-box {
+            text-align: center;
+        }
+        
+        .signature-line {
+            width: 200px;
+            height: 1px;
+            background: #333;
+            margin: 0.5rem auto;
+        }
+        
+        .cert-id {
+            margin-top: 1rem;
+            font-weight: bold;
+        }
+        
+        .cert-seal {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .completion-seal {
+            background: var(--accent);
+        }
+        
+        .achievement-seal {
+            background: var(--gold);
+        }
+        
+        .professional-seal {
+            background: var(--primary);
+        }
+        
+        .customization-panel {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        button {
+            background: var(--secondary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: var(--primary);
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        footer {
+            background: var(--primary);
+            color: white;
+            text-align: center;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .certificate-types {
+                grid-template-columns: 1fr;
+            }
+            
+            .signature-area {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .cert-title {
+                font-size: 1.8rem;
+            }
+            
+            .recipient-name {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Certificate Templates & Components</h1>
+            <p>Professional certificate designs for various purposes</p>
+        </div>
+    </header>
+    
+    <div class="container">
+        <section class="intro">
+            <h2>Certificate Design Guide</h2>
+            <p>Certificates are formal documents that verify an achievement, completion, or status. This guide covers the most common certificate types, their components, and provides customizable templates.</p>
+            <p>Use the customization panel to personalize any certificate template with your information.</p>
+        </section>
+        
+        <section class="customization-panel">
+            <h2>Customize Your Certificate</h2>
+            <div class="form-group">
+                <label for="cert-type">Certificate Type</label>
+                <select id="cert-type">
+                    <option value="completion">Certificate of Completion</option>
+                    <option value="achievement">Certificate of Achievement</option>
+                    <option value="professional">Professional Certification</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="recipient-name">Recipient's Name</label>
+                <input type="text" id="recipient-name" placeholder="Enter recipient's full name">
+            </div>
+            
+            <div class="form-group">
+                <label for="course-name">Course/Program Name</label>
+                <input type="text" id="course-name" placeholder="Enter course or program name">
+            </div>
+            
+            <div class="form-group">
+                <label for="issue-date">Date of Issue</label>
+                <input type="text" id="issue-date" placeholder="Enter date (e.g., June 15, 2023)">
+            </div>
+            
+            <div class="form-group">
+                <label for="issuer-name">Issuing Organization</label>
+                <input type="text" id="issuer-name" placeholder="Enter organization name">
+            </div>
+            
+            <div class="btn-group">
+                <button id="update-cert">Update Certificate</button>
+                <button id="print-cert">Print Certificate</button>
+            </div>
+        </section>
+        
+        <section class="templates-section">
+            <h2>Certificate Templates</h2>
+            <p>Below are three professional certificate templates. Use the customization panel above to personalize them.</p>
+            
+            <div class="template-container">
+                <h3>Certificate of Completion</h3>
+                <div class="certificate completion-cert" id="completion-cert">
+                    <h1 class="cert-title">Certificate of Completion</h1>
+                    <p>This is to certify that</p>
+                    <h2 class="recipient-name" id="comp-recipient">Johnathan Smith</h2>
+                    <p>has successfully completed the</p>
+                    <div class="cert-details">
+                        <h3 id="comp-course">Advanced Web Development Course</h3>
+                        <p>offered by <strong id="comp-issuer">Tech Education Institute</strong></p>
+                        <p>on <strong id="comp-date">June 15, 2023</strong></p>
+                    </div>
+                    <p>This program comprised 40 hours of instruction and covered HTML, CSS, JavaScript, and React.</p>
+                    
+                    <div class="signature-area">
+                        <div class="signature-box">
+                            <div class="signature-line"></div>
+                            <p>Instructor Signature</p>
+                        </div>
+                        <div class="signature-box">
+                            <div class="signature-line"></div>
+                            <p>Director Signature</p>
+                        </div>
+                    </div>
+                    
+                    <div class="cert-seal completion-seal">
+                        SEAL
+                    </div>
+                    
+                    <p class="cert-id">Certificate ID: COMP-2023-78912</p>
+                </div>
+            </div>
+            
+            <div class="template-container">
+                <h3>Certificate of Achievement</h3>
+                <div class="certificate achievement-cert" id="achievement-cert">
+                    <h1 class="cert-title">Certificate of Achievement</h1>
+                    <p>Presented to</p>
+                    <h2 class="recipient-name" id="ach-recipient">Sarah Johnson</h2>
+                    <p>in recognition of exceptional performance and dedication</p>
+                    <div class="cert-details">
+                        <p>for achieving <strong>Top Performer</strong> in</p>
+                        <h3 id="ach-course">Annual Coding Competition 2023</h3>
+                    </div>
+                    <p>Your hard work and commitment serve as an inspiration to all.</p>
+                    
+                    <div class="signature-area">
+                        <div class="signature-box">
+                            <div class="signature-line"></div>
+                            <p>Competition Director</p>
+                        </div>
+                        <div class="signature-box">
+                            <p>Date: <strong id="ach-date">June 15, 2023</strong></p>
+                        </div>
+                    </div>
+                    
+                    <div class="cert-seal achievement-seal">
+                        AWARD
+                    </div>
+                </div>
+            </div>
+            
+            <div class="template-container">
+                <h3>Professional Certification</h3>
+                <div class="certificate professional-cert" id="professional-cert">
+                    <h1 class="cert-title" id="prof-title">Project Management Professional</h1>
+                    <p>This is to certify that</p>
+                    <h2 class="recipient-name" id="prof-recipient">Michael Rodriguez</h2>
+                    <p>has fulfilled the prescribed requirements and is hereby granted the status of</p>
+                    <h3 id="prof-course">Project Management Professional (PMP)</h3>
+                    <p>by <strong id="prof-issuer">Project Management Institute</strong></p>
+                    
+                    <div class="cert-details">
+                        <table style="margin: 0 auto;">
+                            <tr>
+                                <td style="text-align: right; padding-right: 10px;"><strong>Certification ID:</strong></td>
+                                <td style="text-align: left;">PMP-987654</td>
+                            </tr>
+                            <tr>
+                                <td style="text-align: right; padding-right: 10px;"><strong>Date of Issue:</strong></td>
+                                <td style="text-align: left;" id="prof-date">June 15, 2023</td>
+                            </tr>
+                            <tr>
+                                <td style="text-align: right; padding-right: 10px;"><strong>Expiry Date:</strong></td>
+                                <td style="text-align: left;">June 15, 2026</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <div class="signature-area">
+                        <div class="signature-box">
+                            <div class="signature-line"></div>
+                            <p>Board Chair</p>
+                        </div>
+                    </div>
+                    
+                    <div class="cert-seal professional-seal">
+                        PMI
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section class="certificate-types">
+            <h2>Certificate Types & Components</h2>
+            
+            <div class="cert-type-card">
+                <div class="card-header">
+                    <h3>Certificate of Completion</h3>
+                </div>
+                <div class="card-body">
+                    <p>Awarded for finishing a course, training, or program.</p>
+                    <h4>Key Components:</h4>
+                    <ul class="components-list">
+                        <li>Title: Certificate of Completion</li>
+                        <li>Recipient's Full Name</li>
+                        <li>Course/Program Name</li>
+                        <li>Date of Completion</li>
+                        <li>Issuing Organization</li>
+                        <li>Duration or Scope of Training</li>
+                        <li>Authorized Signatures</li>
+                        <li>Official Seal/Logo</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="cert-type-card">
+                <div class="card-header">
+                    <h3>Certificate of Achievement</h3>
+                </div>
+                <div class="card-body">
+                    <p>Recognizes outstanding performance and excellence.</p>
+                    <h4>Key Components:</h4>
+                    <ul class="components-list">
+                        <li>Title: Certificate of Achievement/Excellence</li>
+                        <li>Recipient's Full Name</li>
+                        <li>Specific Achievement Description</li>
+                        <li>Context (Competition, Subject, etc.)</li>
+                        <li>Date of Achievement</li>
+                        <li>Issuing Organization</li>
+                        <li>Authorized Signatures</li>
+                        <li>Official Seal/Logo</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="cert-type-card">
+                <div class="card-header">
+                    <h3>Professional Certification</h3>
+                </div>
+                <div class="card-body">
+                    <p>Awards a formal designation after meeting requirements.</p>
+                    <h4>Key Components:</h4>
+                    <ul class="components-list">
+                        <li>Official Certification Name</li>
+                        <li>Certificant's Full Name</li>
+                        <li>Certifying Body/Organization</li>
+                        <li>Certification Number/ID</li>
+                        <li>Date of Issue</li>
+                        <li>Expiration Date (if applicable)</li>
+                        <li>Authorized Signatures</li>
+                        <li>Official Seal/Logo</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>Certificate Templates & Components | Professional Document Design</p>
+            <p>© 2023 All Rights Reserved</p>
+        </div>
+    </footer>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const updateButton = document.getElementById('update-cert');
+            const printButton = document.getElementById('print-cert');
+            
+            updateButton.addEventListener('click', updateCertificate);
+            printButton.addEventListener('click', printCertificate);
+            
+            function updateCertificate() {
+                const certType = document.getElementById('cert-type').value;
+                const recipientName = document.getElementById('recipient-name').value || 'Recipient Name';
+                const courseName = document.getElementById('course-name').value || 'Course/Program Name';
+                const issueDate = document.getElementById('issue-date').value || 'Date of Issue';
+                const issuerName = document.getElementById('issuer-name').value || 'Issuing Organization';
+                
+                // Update completion certificate
+                document.getElementById('comp-recipient').textContent = recipientName;
+                document.getElementById('comp-course').textContent = courseName;
+                document.getElementById('comp-issuer').textContent = issuerName;
+                document.getElementById('comp-date').textContent = issueDate;
+                
+                // Update achievement certificate
+                document.getElementById('ach-recipient').textContent = recipientName;
+                document.getElementById('ach-course').textContent = courseName;
+                document.getElementById('ach-date').textContent = issueDate;
+                
+                // Update professional certificate
+                document.getElementById('prof-recipient').textContent = recipientName;
+                document.getElementById('prof-course').textContent = courseName;
+                document.getElementById('prof-issuer').textContent = issuerName;
+                document.getElementById('prof-date').textContent = issueDate;
+                
+                // Show the selected certificate type
+                document.querySelectorAll('.certificate').forEach(cert => {
+                    cert.style.display = 'none';
+                });
+                
+                if (certType === 'completion') {
+                    document.getElementById('completion-cert').style.display = 'block';
+                } else if (certType === 'achievement') {
+                    document.getElementById('achievement-cert').style.display = 'block';
+                } else if (certType === 'professional') {
+                    document.getElementById('professional-cert').style.display = 'block';
+                }
+                
+                alert('Certificate updated successfully!');
+            }
+            
+            function printCertificate() {
+                const certType = document.getElementById('cert-type').value;
+                let certElement;
+                
+                if (certType === 'completion') {
+                    certElement = document.getElementById('completion-cert');
+                } else if (certType === 'achievement') {
+                    certElement = document.getElementById('achievement-cert');
+                } else if (certType === 'professional') {
+                    certElement = document.getElementById('professional-cert');
+                }
+                
+                if (certElement) {
+                    const originalContents = document.body.innerHTML;
+                    const certificateContent = certElement.innerHTML;
+                    
+                    document.body.innerHTML = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>Certificate</title>
+                            <style>
+                                body {
+                                    font-family: 'Times New Roman', serif;
+                                    margin: 0;
+                                    padding: 20px;
+                                    display: flex;
+                                    justify-content: center;
+                                    align-items: center;
+                                    min-height: 100vh;
+                                }
+                                .certificate {
+                                    width: 800px;
+                                    margin: 0 auto;
+                                    padding: 40px;
+                                    text-align: center;
+                                    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+                                    page-break-after: always;
+                                }
+                                .completion-cert { border: 15px solid #16a085; }
+                                .achievement-cert { border: 15px double #c0a878; background: linear-gradient(135deg, #fff9e6, white); }
+                                .professional-cert { border: 5px double #2c3e50; }
+                                .cert-title { font-size: 2.5rem; margin-bottom: 1.5rem; color: #2c3e50; text-transform: uppercase; letter-spacing: 3px; }
+                                .recipient-name { font-size: 2rem; margin: 1.5rem 0; color: #3498db; text-decoration: underline; }
+                                .cert-details { margin: 1.5rem 0; font-size: 1.2rem; }
+                                .signature-area { display: flex; justify-content: space-around; margin-top: 3rem; padding-top: 1.5rem; border-top: 2px solid #ddd; }
+                                .signature-box { text-align: center; }
+                                .signature-line { width: 200px; height: 1px; background: #333; margin: 0.5rem auto; }
+                                .cert-id { margin-top: 1rem; font-weight: bold; }
+                                .cert-seal { position: absolute; bottom: 20px; right: 20px; width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; }
+                                .completion-seal { background: #16a085; }
+                                .achievement-seal { background: #c0a878; }
+                                .professional-seal { background: #2c3e50; }
+                                @media print {
+                                    body { margin: 0; padding: 0; }
+                                    .certificate { box-shadow: none; }
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="certificate ${certType}-cert">${certificateContent}</div>
+                        </body>
+                        </html>
+                    `;
+                    
+                    window.print();
+                    
+                    // Restore original content
+                    document.body.innerHTML = originalContents;
+                    // Reattach event listeners
+                    updateButton.addEventListener('click', updateCertificate);
+                    printButton.addEventListener('click', printCertificate);
+                }
+            }
+            
+            // Initialize with completion certificate
+            updateCertificate();
+        });
+    </script>
+</body>
+</html>
