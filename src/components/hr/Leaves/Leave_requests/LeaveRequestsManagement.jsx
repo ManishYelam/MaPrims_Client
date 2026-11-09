@@ -1,341 +1,484 @@
+// src/modules/Leave/Leave_requests/LeaveRequestManagement.jsx
 import React, { useState, useEffect, useCallback, useMemo, useContext, memo, lazy, Suspense } from 'react';
 import {
-  Search, Edit, Trash2, Filter, X, Plus, Download, Upload,
+  Search, Edit, Trash2, Plus, Download, Eye,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  SlidersHorizontal, Calendar, CheckCircle2, AlertCircle, FileText,
-  Clock, Check, XCircle, Ban, RefreshCw, Link
+  X, CheckCircle, AlertCircle, Clock, Archive,
+  User, Users, Ban, ArrowRight, Check, XCircle, Link as LinkIcon, RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { hrAPI } from '../../../../services/api';
 import { AuthContext } from '../../../../context/AuthContext';
 import { usePermissions } from '../../../../hooks/usePermissions';
 
-const LeaveRequestModal = lazy(() => import('./LeaveRequestModal'));
-const ConfirmationModal = lazy(() => import('../../../../components/common/ConfirmationModal'));
-const ImportModal = lazy(() => import('../../../../components/common/ImportModal'));
-const Toast = lazy(() => import('../../../../components/common/Toast'));
+const LeaveRequestModal   = lazy(() => import('./LeaveRequestModal'));
+const ConfirmationModal   = lazy(() => import('../../../../components/common/ConfirmationModal'));
+const Toast               = lazy(() => import('../../../../components/common/Toast'));
+const EmployeeSelectionModal = lazy(() => import('../../Employees/EmployeeSelectionModal'));
 
-const BooleanBadge = memo(({ value }) => (
-  <span className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-medium ${value ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-    {value ? 'Yes' : 'No'}
-  </span>
-));
-BooleanBadge.displayName = 'BooleanBadge';
+/* ──────────────────────────────────────────────────────────────────
+   INLINE REASON CONFIRMATION MODAL  (used only for Reject / Cancel)
+   - Reason field is ALWAYS rendered
+   - Confirm button is DISABLED until reason.trim() is non-empty
+   - onConfirm receives the trimmed reason string
+   - onCancel closes without calling anything
+────────────────────────────────────────────────────────────────── */
+const ReasonConfirmationModal = ({
+  show,
+  title,
+  message,
+  tone = 'blue',              // 'blue' | 'red'
+  confirmText = 'Confirm',
+  cancelText  = 'Cancel',
+  reasonLabel = 'Reason',
+  reasonPlaceholder = 'Enter a reason…',
+  onConfirm,
+  onCancel,
+  loading = false,
+}) => {
+  const [reason, setReason] = useState('');
+  const [touched, setTouched] = useState(false);
 
+  useEffect(() => {
+    if (show) { setReason(''); setTouched(false); }
+  }, [show]);
+
+  if (!show) return null;
+
+  const trimmed = reason.trim();
+  const invalid = trimmed.length === 0;
+
+  const toneMap = {
+    blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-600',  btn: 'bg-blue-600 hover:bg-blue-700' },
+    red:  { bg: 'bg-red-50',  border: 'border-red-200',  icon: 'text-red-600',   btn: 'bg-red-600 hover:bg-red-700' },
+  };
+  const t = toneMap[tone] || toneMap.blue;
+
+  const handleConfirmClick = () => {
+    setTouched(true);
+    if (invalid) return;                 // hard stop
+    onConfirm?.(trimmed);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 z-[70]">
+      <div className="bg-white rounded-md max-w-md w-full shadow-xl flex flex-col max-h-[90vh]">
+
+        {/* Header */}
+        <div className="flex items-start gap-2 p-3 border-b">
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${t.bg} ${t.border} border`}>
+            <AlertTriangle className={`w-4 h-4 ${t.icon}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+            {message && <p className="text-xs text-gray-600 mt-1 whitespace-pre-line">{message}</p>}
+          </div>
+          <button onClick={onCancel} disabled={loading}
+            className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Reason field — ALWAYS rendered */}
+        <div className="p-3 border-b">
+          <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+            {reasonLabel} <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            rows={3}
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            onBlur={() => setTouched(true)}
+            className={`w-full px-2 py-1 border rounded text-xs focus:ring-1 focus:ring-primary-500 resize-none ${
+              touched && invalid ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder={reasonPlaceholder}
+            disabled={loading}
+            autoFocus
+          />
+          {touched && invalid && (
+            <p className="text-[9px] text-red-600 mt-0.5">Reason is required</p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-1.5 p-2.5 border-t bg-gray-50">
+          <button onClick={onCancel} disabled={loading}
+            className="px-2.5 py-1 text-[11px] border rounded bg-white hover:bg-gray-50 disabled:opacity-50">
+            {cancelText}
+          </button>
+          <button
+            onClick={handleConfirmClick}
+            disabled={loading || invalid}
+            title={invalid ? 'Enter a reason to continue' : undefined}
+            className={`px-2.5 py-1 text-[11px] rounded text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed ${t.btn}`}
+          >
+            {loading ? 'Working…' : confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ──────────────────────────────────────────────────────────────────
+   HELPERS
+────────────────────────────────────────────────────────────────── */
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+};
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-IN', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+};
+
+const dash = (v) => (v === null || v === undefined || v === '' ? '—' : v);
+
+function useDebounce(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debounced;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   QUICK ACTIONS
+────────────────────────────────────────────────────────────────── */
+const REQUEST_QUICK_ACTIONS = {
+  pending: [
+    { Icon: Check,   color: 'text-green-600 hover:bg-green-50',   title: 'Approve', nextStatus: 'approved' },
+    { Icon: XCircle, color: 'text-red-600 hover:bg-red-50',       title: 'Reject',  nextStatus: 'rejected' },
+  ],
+  approved: [
+    { Icon: Ban,     color: 'text-orange-600 hover:bg-orange-50', title: 'Cancel',  nextStatus: 'cancelled' },
+  ],
+  partially_approved: [
+    { Icon: Check,   color: 'text-green-600 hover:bg-green-50',   title: 'Approve', nextStatus: 'approved' },
+    { Icon: XCircle, color: 'text-red-600 hover:bg-red-50',       title: 'Reject',  nextStatus: 'rejected' },
+    { Icon: Ban,     color: 'text-orange-600 hover:bg-orange-50', title: 'Cancel',  nextStatus: 'cancelled' },
+  ],
+  rejected:  [],
+  cancelled: [],
+  withdrawn: [],
+};
+
+/* ──────────────────────────────────────────────────────────────────
+   BADGES
+────────────────────────────────────────────────────────────────── */
 const StatusBadge = memo(({ status }) => {
   const colors = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    approved: 'bg-green-100 text-green-800',
-    partially_approved: 'bg-blue-100 text-blue-800',
-    rejected: 'bg-red-100 text-red-800',
-    cancelled: 'bg-gray-100 text-gray-800',
-    withdrawn: 'bg-purple-100 text-purple-800',
+    pending:            'bg-yellow-100 text-yellow-700 border border-yellow-300',
+    approved:           'bg-green-100 text-green-700 border border-green-300',
+    partially_approved: 'bg-blue-100 text-blue-700 border border-blue-300',
+    rejected:           'bg-red-100 text-red-700 border border-red-300',
+    cancelled:          'bg-gray-100 text-gray-700 border border-gray-300',
+    withdrawn:          'bg-purple-100 text-purple-700 border border-purple-300',
   };
   const icons = {
-    pending: Clock,
-    approved: Check,
-    partially_approved: RefreshCw,
-    rejected: XCircle,
-    cancelled: Ban,
-    withdrawn: X,
+    pending: Clock, approved: Check, partially_approved: RefreshCw,
+    rejected: XCircle, cancelled: Ban, withdrawn: X,
   };
   const Icon = icons[status] || AlertCircle;
   return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
-      <Icon className="w-3 h-3" />
-      {status || 'unknown'}
+    <span className={`inline-flex items-center gap-0.5 px-1 py-0 rounded-full text-[10px] font-medium ${colors[status] || 'bg-gray-100 text-gray-700 border border-gray-300'}`}>
+      <Icon className="w-2.5 h-2.5" /> {status || 'unknown'}
     </span>
   );
 });
 StatusBadge.displayName = 'StatusBadge';
 
 const ColorSwatch = memo(({ color }) => (
-  <span className="inline-block w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: color || '#ccc' }} />
+  <span className="inline-block w-2.5 h-2.5 rounded-full border border-gray-300 flex-shrink-0"
+    style={{ backgroundColor: color || '#ccc' }} aria-hidden="true" />
 ));
 ColorSwatch.displayName = 'ColorSwatch';
 
-const RequestRow = memo(({ record, canBulk, selected, toggleSelection, canUpdate, canDelete, openModal, handleDelete, handleApprove, handleReject, handleCancel }) => {
+const BooleanBadge = memo(({ value, yes = 'Yes', no = 'No' }) => (
+  <span className={`inline-flex items-center px-1 py-0 rounded text-[10px] font-medium ${value ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+    {value ? yes : no}
+  </span>
+));
+BooleanBadge.displayName = 'BooleanBadge';
+
+/* ──────────────────────────────────────────────────────────────────
+   ROW
+────────────────────────────────────────────────────────────────── */
+const RequestRow = memo(({
+  record, canBulk, selected, toggleSelection,
+  canUpdate, canDelete, canApprove, canCancel,
+  openModal, handleDelete, handleApprove, handleReject, handleCancel,
+}) => {
   const isSelected = selected.includes(record.leave_req_id);
-  const isPending = record.status === 'pending';
-  const isApproved = record.status === 'approved';
-  const canAction = !['cancelled', 'rejected', 'withdrawn'].includes(record.status);
-  const formatDate = (date) => date ? new Date(date).toLocaleDateString() : '—';
-  const formatDateTime = (date) => date ? new Date(date).toLocaleString() : '—';
+  const quickActions = REQUEST_QUICK_ACTIONS[record.status] || [];
+  const employeeName = record.employee
+    ? [record.employee.first_name, record.employee.last_name].filter(Boolean).join(' ')
+    : '—';
+
+  const onQuickAction = (nextStatus) => {
+    if (nextStatus === 'approved') return handleApprove(record.leave_req_id);
+    if (nextStatus === 'rejected') return handleReject(record.leave_req_id);
+    if (nextStatus === 'cancelled') return handleCancel(record.leave_req_id);
+  };
 
   return (
     <tr className="hover:bg-gray-50 transition-colors">
       {canBulk && (
-        <td className="px-2 py-1 sticky left-0 bg-white z-10">
-          <input type="checkbox" checked={isSelected} onChange={() => toggleSelection(record.leave_req_id)} className="rounded border-gray-300 text-primary-600 w-3 h-3" />
+        <td className="px-0.5 py-0.5 whitespace-nowrap">
+          <input type="checkbox" checked={isSelected}
+            onChange={() => toggleSelection(record.leave_req_id)}
+            className="rounded border-gray-300 text-primary-600 focus:ring-1 focus:ring-primary-500 w-3 h-3"
+            aria-label="Select request" />
         </td>
       )}
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.leave_req_id}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-900 text-xs">
-        {record.employee ? `${record.employee.first_name} ${record.employee.last_name}` : 'N/A'}
+
+      <td className="px-0.5 py-0.5 whitespace-nowrap">
+        <div className="flex items-center gap-0.5">
+          <button type="button" onClick={() => openModal(record, true)}
+            className="inline-flex items-center justify-center w-5 h-5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50"
+            title="View" aria-label="View request"><Eye className="w-3 h-3" /></button>
+
+          {canUpdate && ['pending', 'partially_approved'].includes(record.status) && (
+            <button type="button" onClick={() => openModal(record, false)}
+              className="inline-flex items-center justify-center w-5 h-5 text-gray-600 hover:text-gray-900 rounded hover:bg-gray-100"
+              title="Edit" aria-label="Edit request"><Edit className="w-3 h-3" /></button>
+          )}
+
+          {quickActions.map(act => {
+            const gate = act.nextStatus === 'approved' || act.nextStatus === 'rejected' ? canApprove
+                       : act.nextStatus === 'cancelled' ? canCancel : true;
+            if (!gate) return null;
+            return (
+              <button key={act.title} type="button" onClick={() => onQuickAction(act.nextStatus)}
+                className={`inline-flex items-center justify-center w-5 h-5 rounded ${act.color}`}
+                title={act.title} aria-label={act.title}>
+                <act.Icon className="w-3 h-3" />
+              </button>
+            );
+          })}
+
+          {canDelete && (
+            <button type="button" onClick={() => handleDelete(record.leave_req_id)}
+              className="inline-flex items-center justify-center w-5 h-5 text-red-600 hover:text-red-900 rounded hover:bg-red-50"
+              title="Delete" aria-label="Delete request"><Trash2 className="w-3 h-3" /></button>
+          )}
+        </div>
       </td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-900 text-xs">
+
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] font-mono text-gray-700 font-medium">{dash(record.leave_req_id)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-700">
+        {employeeName}
+        {record.employee?.employee_code && <span className="text-gray-400 text-[10px] ml-1">({record.employee.employee_code})</span>}
+      </td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-700">
         <div className="flex items-center gap-1">
           <ColorSwatch color={record.leave_type?.color} />
-          <span>{record.leave_type?.name || 'N/A'}</span>
-          <span className="text-gray-500 text-[9px]">({record.leave_type?.code || ''})</span>
+          <span>{record.leave_type?.name || '—'}</span>
+          {record.leave_type?.code && <span className="text-gray-400 text-[10px]">({record.leave_type.code})</span>}
         </div>
       </td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-700 text-xs">{formatDate(record.start_date)}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-700 text-xs">{formatDate(record.end_date)}</td>
-      <td className="px-2 py-1 whitespace-nowrap font-medium text-xs">{record.days}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-xs"><BooleanBadge value={record.is_half_day} /></td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.half_day_on ? formatDate(record.half_day_on) : '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.half_day_session || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap max-w-24 truncate text-xs" title={record.reason || ''}>{record.reason || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-xs"><BooleanBadge value={record.emergency_leave} /></td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.contact_during_leave || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-xs"><StatusBadge status={record.status} /></td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.current_approval_level ?? 0}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.approved_by || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-[9px]">{formatDateTime(record.approved_at)}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.rejected_by || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-[9px]">{formatDateTime(record.rejected_at)}</td>
-      <td className="px-2 py-1 whitespace-nowrap max-w-24 truncate text-xs" title={record.rejection_reason || ''}>{record.rejection_reason || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.cancelled_by || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-[9px]">{formatDateTime(record.cancelled_at)}</td>
-      <td className="px-2 py-1 whitespace-nowrap max-w-24 truncate text-xs" title={record.cancellation_reason || ''}>{record.cancellation_reason || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-xs">
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{formatDate(record.start_date)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{formatDate(record.end_date)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] font-semibold text-gray-700">{record.days ?? 0}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap"><BooleanBadge value={record.is_half_day} /></td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{record.half_day_on ? formatDate(record.half_day_on) : '—'}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{record.half_day_session || '—'}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600 max-w-[160px] truncate" title={record.reason || ''}>{record.reason || '—'}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap"><BooleanBadge value={record.emergency_leave} /></td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{record.contact_during_leave || '—'}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap"><StatusBadge status={record.status} /></td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{record.current_approval_level ?? 0}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{dash(record.approved_by)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{formatDateTime(record.approved_at)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{dash(record.rejected_by)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{formatDateTime(record.rejected_at)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600 max-w-[140px] truncate" title={record.rejection_reason || ''}>{record.rejection_reason || '—'}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{dash(record.cancelled_by)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{formatDateTime(record.cancelled_at)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600 max-w-[140px] truncate" title={record.cancellation_reason || ''}>{record.cancellation_reason || '—'}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap">
         {record.attachment_url ? (
-          <a href={record.attachment_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800"><Link className="w-3 h-3" /></a>
+          <a href={record.attachment_url} target="_blank" rel="noopener noreferrer"
+             className="inline-flex items-center justify-center w-5 h-5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50"
+             title="Open attachment" aria-label="Open attachment"><LinkIcon className="w-3 h-3" /></a>
         ) : '—'}
       </td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.attachments?.length || 0}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.balance_before ?? '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.balance_after ?? '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-xs"><BooleanBadge value={record.notified_employee} /></td>
-      <td className="px-2 py-1 whitespace-nowrap text-xs"><BooleanBadge value={record.notified_manager} /></td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.created_by || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-xs">{record.updated_by || '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-[9px]">{formatDateTime(record.createdAt)}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-[9px]">{formatDateTime(record.updatedAt)}</td>
-      <td className="px-2 py-1 whitespace-nowrap text-gray-500 text-[9px]">{record.deletedAt ? formatDateTime(record.deletedAt) : '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap sticky right-0 bg-white z-10">
-        <div className="flex items-center gap-0.5">
-          {canAction && canUpdate && <button onClick={() => openModal(record)} className="text-gray-600 hover:text-gray-900 p-0.5 rounded hover:bg-gray-50"><Edit className="w-3 h-3" /></button>}
-          {canAction && isPending && (
-            <>
-              <button onClick={() => handleApprove(record.leave_req_id)} className="text-green-600 hover:text-green-900 p-0.5 rounded hover:bg-green-50" title="Approve"><Check className="w-3 h-3" /></button>
-              <button onClick={() => handleReject(record.leave_req_id)} className="text-red-600 hover:text-red-900 p-0.5 rounded hover:bg-red-50" title="Reject"><XCircle className="w-3 h-3" /></button>
-            </>
-          )}
-          {isApproved && (
-            <button onClick={() => handleCancel(record.leave_req_id)} className="text-orange-600 hover:text-orange-900 p-0.5 rounded hover:bg-orange-50" title="Cancel"><Ban className="w-3 h-3" /></button>
-          )}
-          {canDelete && <button onClick={() => handleDelete(record.leave_req_id)} className="text-red-600 hover:text-red-900 p-0.5 rounded hover:bg-red-50"><Trash2 className="w-3 h-3" /></button>}
-        </div>
-      </td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{record.attachments?.length || 0}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{record.balance_before ?? '—'}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{record.balance_after ?? '—'}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap"><BooleanBadge value={record.notified_employee} /></td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap"><BooleanBadge value={record.notified_manager} /></td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{dash(record.created_by)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{dash(record.updated_by)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{formatDateTime(record.createdAt)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{formatDateTime(record.updatedAt)}</td>
+      <td className="px-0.5 py-0.5 whitespace-nowrap text-[11px] text-gray-600">{record.deletedAt ? formatDateTime(record.deletedAt) : '—'}</td>
     </tr>
   );
 });
 RequestRow.displayName = 'RequestRow';
 
+/* ──────────────────────────────────────────────────────────────────
+   MAIN COMPONENT
+────────────────────────────────────────────────────────────────── */
 const LeaveRequestManagement = () => {
   const { user: authUser } = useContext(AuthContext);
   const { hasPermission, isAdmin } = usePermissions();
 
-  const canManage = useMemo(() => isAdmin, [isAdmin]);
-  const canCreate = useMemo(() => hasPermission('create', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
-  const canUpdate = useMemo(() => hasPermission('update', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
-  const canDelete = useMemo(() => hasPermission('delete', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
-  const canExport = useMemo(() => hasPermission('export', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
-  const canImport = useMemo(() => hasPermission('import', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
-  const canBulk = useMemo(() => hasPermission('bulk', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
+  const canManage  = useMemo(() => isAdmin, [isAdmin]);
+  const canCreate  = useMemo(() => hasPermission('create', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
+  const canUpdate  = useMemo(() => hasPermission('update', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
+  const canDelete  = useMemo(() => hasPermission('delete', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
+  const canExport  = useMemo(() => hasPermission('export', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
+  const canBulk    = useMemo(() => hasPermission('bulk', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
   const canApprove = useMemo(() => hasPermission('approve', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
-  const canCancel = useMemo(() => hasPermission('cancel', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
+  const canCancel  = useMemo(() => hasPermission('cancel', 'leaverequest', 'A4') || canManage, [hasPermission, canManage]);
 
+  const [activeTab, setActiveTab] = useState('all');
   const [records, setRecords] = useState([]);
   const [counts, setCounts] = useState({ total: 0, byStatus: {} });
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [selected, setSelected] = useState([]);
   const [bulkAction, setBulkAction] = useState('');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
   const [showModal, setShowModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+
+  const [showEmployeeFilterModal, setShowEmployeeFilterModal] = useState(false);
+  const [filterEmployee, setFilterEmployee] = useState(null);
+
+  const [leaveTypes, setLeaveTypes] = useState([]);
 
   const [filters, setFilters] = useState({
-    search: '',
-    status: 'all',
-    leave_type_id: 'all',
-    emp_id: 'all',
-    page: 1,
-    limit: 15,
+    search: '', leave_type_id: 'all', emp_id: 'all', page: 1, limit: 50,
   });
+  const debouncedSearch = useDebounce(filters.search, 300);
 
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 15,
-    totalItems: 0,
-    totalPages: 0,
-  });
-
+  // Generic confirmation (DELETE only)
   const [confirmation, setConfirmation] = useState({
+    show: false, title: '', message: '', type: '', onConfirm: null, loading: false,
+  });
+
+  // Dedicated reason confirmation (REJECT / CANCEL)
+  const [reasonDialog, setReasonDialog] = useState({
     show: false,
     title: '',
     message: '',
-    type: '',
-    onConfirm: null,
+    tone: 'blue',
+    confirmText: 'Confirm',
+    reasonLabel: 'Reason',
+    reasonPlaceholder: 'Enter a reason…',
+    onConfirm: null,   // receives trimmed reason string
+    loading: false,
   });
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type, id: Date.now() });
   }, []);
-
   const clearToast = useCallback(() => setToast(null), []);
+
+  const fetchLeaveTypes = useCallback(async () => {
+    try {
+      const res = await hrAPI.getLeaveTypes();
+      if (res.data?.success) setLeaveTypes(res.data.data || []);
+    } catch {}
+  }, []);
+  useEffect(() => { fetchLeaveTypes(); }, [fetchLeaveTypes]);
+
+  const buildFilterConditions = useCallback(() => {
+    const fc = {};
+    if (activeTab !== 'all') fc.status = activeTab;
+    if (filters.leave_type_id !== 'all') fc.leave_type_id = parseInt(filters.leave_type_id);
+    if (filters.emp_id !== 'all') fc.emp_id = parseInt(filters.emp_id);
+    return fc;
+  }, [activeTab, filters]);
 
   const fetchRecords = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const payload = {
-        page: filters.page,
-        limit: filters.limit,
-        sortBy: 'created_at',
-        sortOrder: 'DESC',
-      };
-      if (filters.search.trim()) {
-        payload.search = filters.search.trim();
-        payload.searchFields = ['employee_name', 'status', 'reason'];
+      const payload = { page: filters.page, limit: filters.limit, sortBy: 'created_at', sortOrder: 'DESC' };
+      if (debouncedSearch.trim()) {
+        payload.search = debouncedSearch.trim();
+        payload.searchFields = 'employee_name,status,reason';
       }
-      const filterConditions = {};
-      if (filters.status !== 'all') filterConditions.status = filters.status;
-      if (filters.leave_type_id !== 'all') filterConditions.leave_type_id = parseInt(filters.leave_type_id);
-      if (filters.emp_id !== 'all') filterConditions.emp_id = parseInt(filters.emp_id);
-      if (Object.keys(filterConditions).length > 0) payload.filters = filterConditions;
+      const fc = buildFilterConditions();
+      if (Object.keys(fc).length > 0) payload.filters = fc;
+
       const response = await hrAPI.getLeaveRequestsAll(payload);
-      if (response.data?.success) {
-        const { rows, counts, pagination } = response.data;
-        setRecords(rows || []);
-        setCounts(counts || { total: 0, byStatus: {} });
-        setPagination({
-          page: filters.page,
-          limit: filters.limit,
-          totalItems: pagination?.totalItems || 0,
-          totalPages: pagination?.totalPages || 0,
-        });
-      } else {
-        throw new Error(response.data?.message || 'Failed to fetch leave requests');
-      }
+      const data = response.data;
+      if (data?.success) {
+        setRecords(data.rows || []);
+        setCounts(data.counts || { total: 0, byStatus: {} });
+        setTotalItems(data.pagination?.totalItems || 0);
+        setTotalPages(data.pagination?.totalPages || 0);
+      } else throw new Error(data?.message || 'Invalid response');
     } catch (err) {
-      setError('Failed to load leave requests. Please try again.');
-      console.error(err);
+      setError(err.message || 'Failed to load leave requests');
+      setRecords([]); setTotalItems(0); setTotalPages(0);
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters.page, filters.limit, buildFilterConditions, debouncedSearch]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => fetchRecords(), 350);
-    return () => clearTimeout(timer);
-  }, [fetchRecords]);
+  useEffect(() => { fetchRecords(); /* eslint-disable-next-line */ }, [activeTab, filters, debouncedSearch]);
 
-  const exportToCSV = useCallback(async () => {
-    if (!canExport) return showToast('No permission to export', 'error');
-    try {
-      setExportLoading(true);
-      const response = await hrAPI.getLeaveRequestsAll({ limit: 10000, sortBy: 'created_at', sortOrder: 'DESC' });
-      const data = response.data?.rows || [];
-      if (!data.length) return showToast('No data to export', 'error');
-      const headers = [
-        'ID', 'Employee', 'Leave Type', 'Start Date', 'End Date', 'Days',
-        'Is Half Day', 'Half Day On', 'Half Day Session', 'Reason', 'Emergency',
-        'Contact', 'Status', 'Approval Level', 'Approved By', 'Approved At',
-        'Rejected By', 'Rejected At', 'Rejection Reason', 'Cancelled By',
-        'Cancelled At', 'Cancel Reason', 'Attachment URL', 'Attachments Count',
-        'Balance Before', 'Balance After', 'Notified Employee', 'Notified Manager',
-        'Created By', 'Updated By', 'Created At', 'Updated At', 'Deleted At'
-      ];
-      const rows = data.map(r => [
-        r.leave_req_id,
-        r.employee ? `${r.employee.first_name} ${r.employee.last_name}` : 'N/A',
-        r.leave_type?.name || 'N/A',
-        r.start_date || 'N/A',
-        r.end_date || 'N/A',
-        r.days || 0,
-        r.is_half_day ? 'Yes' : 'No',
-        r.half_day_on || 'N/A',
-        r.half_day_session || 'N/A',
-        r.reason || '',
-        r.emergency_leave ? 'Yes' : 'No',
-        r.contact_during_leave || 'N/A',
-        r.status || 'pending',
-        r.current_approval_level || 0,
-        r.approved_by || 'N/A',
-        r.approved_at || 'N/A',
-        r.rejected_by || 'N/A',
-        r.rejected_at || 'N/A',
-        r.rejection_reason || '',
-        r.cancelled_by || 'N/A',
-        r.cancelled_at || 'N/A',
-        r.cancellation_reason || '',
-        r.attachment_url || 'N/A',
-        r.attachments?.length || 0,
-        r.balance_before ?? 'N/A',
-        r.balance_after ?? 'N/A',
-        r.notified_employee ? 'Yes' : 'No',
-        r.notified_manager ? 'Yes' : 'No',
-        r.created_by || 'N/A',
-        r.updated_by || 'N/A',
-        new Date(r.createdAt).toISOString(),
-        new Date(r.updatedAt).toISOString(),
-        r.deletedAt ? new Date(r.deletedAt).toISOString() : 'N/A'
-      ]);
-      const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `leave_requests_${new Date().toISOString().split('T')[0]}.csv`;
-      link.click();
-      showToast('Export successful', 'success');
-    } catch (err) {
-      showToast('Export failed', 'error');
-      console.error(err);
-    } finally {
-      setExportLoading(false);
-    }
-  }, [canExport, showToast]);
+  const tabs = useMemo(() => {
+    const sc = counts.byStatus || {};
+    return [
+      { id: 'all',       name: 'All',       count: counts.total ?? totalItems, icon: Users,       color: 'text-gray-600' },
+      { id: 'pending',   name: 'Pending',   count: sc.pending   ?? 0,          icon: Clock,       color: 'text-yellow-600' },
+      { id: 'approved',  name: 'Approved',  count: sc.approved  ?? 0,          icon: CheckCircle, color: 'text-green-600' },
+      { id: 'rejected',  name: 'Rejected',  count: sc.rejected  ?? 0,          icon: XCircle,     color: 'text-red-600' },
+      { id: 'cancelled', name: 'Cancelled', count: sc.cancelled ?? 0,          icon: Archive,     color: 'text-gray-500' },
+    ];
+  }, [counts, totalItems]);
 
-  const sampleRequests = [
-    ['emp_id', 'leave_type_id', 'start_date', 'end_date', 'days', 'reason', 'status'],
-    ['1', '1', '2025-05-01', '2025-05-03', '3', 'Vacation', 'pending'],
-    ['2', '2', '2025-05-05', '2025-05-05', '1', 'Personal', 'pending'],
-  ];
+  const handleStatusChange = useCallback((status) => {
+    setActiveTab(status); setFilters(p => ({ ...p, page: 1 }));
+  }, []);
 
-  const handleImportUpload = useCallback(async (parsedRows) => {
-    if (!canImport) return showToast('No permission to import', 'error');
-    try {
-      const recordsToImport = parsedRows.map((row, i) => {
-        if (!row.emp_id) throw new Error(`Row ${i+1}: emp_id required`);
-        if (!row.leave_type_id) throw new Error(`Row ${i+1}: leave_type_id required`);
-        if (!row.start_date || !row.end_date) throw new Error(`Row ${i+1}: start_date and end_date required`);
-        return {
-          emp_id: parseInt(row.emp_id),
-          leave_type_id: parseInt(row.leave_type_id),
-          start_date: row.start_date,
-          end_date: row.end_date,
-          days: parseFloat(row.days) || 0,
-          reason: row.reason || '',
-          status: row.status || 'pending',
-          emergency_leave: row.emergency_leave === 'true',
-          is_half_day: row.is_half_day === 'true',
-        };
-      });
-      await Promise.all(recordsToImport.map(record => hrAPI.createLeaveRequest(record)));
-      showToast(`Imported ${recordsToImport.length} records`, 'success');
-      setShowImportModal(false);
-      fetchRecords();
-    } catch (err) {
-      showToast(`Import failed: ${err.message}`, 'error');
-    }
-  }, [canImport, showToast, fetchRecords]);
+  const handleSearchChange = useCallback((v) => setFilters(p => ({ ...p, search: v, page: 1 })), []);
+  const handleLimitChange  = useCallback((v) => setFilters(p => ({ ...p, limit: parseInt(v), page: 1 })), []);
+  const handlePageChange   = useCallback((n) => {
+    if (n >= 1 && n <= Math.max(totalPages, 1)) setFilters(p => ({ ...p, page: n }));
+  }, [totalPages]);
+
+  const handleEmployeeFilterSelect = useCallback((emp) => {
+    if (emp) { setFilterEmployee(emp); setFilters(p => ({ ...p, emp_id: emp.emp_id, page: 1 })); }
+    else     { setFilterEmployee(null); setFilters(p => ({ ...p, emp_id: 'all', page: 1 })); }
+    setShowEmployeeFilterModal(false);
+  }, []);
+
+  const clearEmployeeFilter = useCallback(() => {
+    setFilterEmployee(null); setFilters(p => ({ ...p, emp_id: 'all', page: 1 }));
+  }, []);
+
+  const handleRefresh = useCallback(() => fetchRecords(), [fetchRecords]);
+  const handleGetData = useCallback(() => fetchRecords(), [fetchRecords]);
+
+  const hasActiveFilters = useMemo(() => (
+    filters.search !== '' || activeTab !== 'all' ||
+    filters.leave_type_id !== 'all' || filters.emp_id !== 'all'
+  ), [filters, activeTab]);
 
   const toggleSelection = useCallback((id) => {
     if (!canBulk) return;
@@ -344,420 +487,690 @@ const LeaveRequestManagement = () => {
 
   const toggleSelectAll = useCallback(() => {
     if (!canBulk) return;
-    setSelected(selected.length === records.length ? [] : records.map(r => r.leave_req_id));
+    const ids = records.map(r => r.leave_req_id);
+    setSelected(selected.length === ids.length ? [] : ids);
   }, [canBulk, selected, records]);
 
-  const handleBulkAction = useCallback(async () => {
-    if (!canBulk || !bulkAction || !selected.length) return;
-    try {
-      if (bulkAction === 'delete') {
-        showConfirmation(
-          'Delete Requests',
-          `Are you sure you want to delete ${selected.length} request(s)?`,
-          'bulkDelete',
-          async () => {
-            await Promise.all(selected.map(id => hrAPI.deleteLeaveRequest(id)));
-            setSelected([]);
-            setBulkAction('');
-            fetchRecords();
-            showToast(`Deleted ${selected.length} requests`, 'success');
-          }
-        );
-      } else if (bulkAction === 'approve' || bulkAction === 'reject') {
-        const actionLabel = bulkAction === 'approve' ? 'approve' : 'reject';
-        showConfirmation(
-          `${actionLabel.charAt(0).toUpperCase() + actionLabel.slice(1)} Requests`,
-          `Are you sure you want to ${actionLabel} ${selected.length} request(s)?`,
-          'action',
-          async () => {
-            const promises = selected.map(id =>
-              bulkAction === 'approve' ? hrAPI.approveLeaveRequest(id) : hrAPI.rejectLeaveRequest(id, 'Bulk action')
-            );
-            await Promise.all(promises);
-            setSelected([]);
-            setBulkAction('');
-            fetchRecords();
-            showToast(`${selected.length} requests ${actionLabel}d`, 'success');
-          }
-        );
-      }
-    } catch (err) {
-      showToast('Bulk action failed', 'error');
-      console.error(err);
-    }
-  }, [canBulk, bulkAction, selected, fetchRecords, showToast]);
-
-  const handleApprove = useCallback(async (id) => {
-    if (!canApprove) return showToast('No permission to approve', 'error');
-    setActionLoading(true);
-    try {
-      await hrAPI.approveLeaveRequest(id);
-      fetchRecords();
-      showToast('Leave request approved', 'success');
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Approval failed', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  }, [canApprove, fetchRecords, showToast]);
-
-  const handleReject = useCallback(async (id) => {
-    if (!canApprove) return showToast('No permission to reject', 'error');
-    const reason = prompt('Enter rejection reason (optional):');
-    setActionLoading(true);
-    try {
-      await hrAPI.rejectLeaveRequest(id, reason || undefined);
-      fetchRecords();
-      showToast('Leave request rejected', 'success');
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Rejection failed', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  }, [canApprove, fetchRecords, showToast]);
-
-  const handleCancel = useCallback(async (id) => {
-    if (!canCancel) return showToast('No permission to cancel', 'error');
-    const reason = prompt('Enter cancellation reason (optional):');
-    setActionLoading(true);
-    try {
-      await hrAPI.cancelLeaveRequest(id, reason || undefined);
-      fetchRecords();
-      showToast('Leave request cancelled and balance restored', 'success');
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Cancellation failed', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  }, [canCancel, fetchRecords, showToast]);
-
-  const handleDelete = useCallback((id) => {
-    if (!canDelete) return showToast('No permission to delete', 'error');
-    const record = records.find(r => r.leave_req_id === id);
-    showConfirmation(
-      'Delete Request',
-      `Delete leave request for ${record?.employee?.first_name || 'Unknown'}? This cannot be undone.`,
-      'delete',
-      async () => {
-        await hrAPI.deleteLeaveRequest(id);
-        fetchRecords();
-        showToast('Request deleted', 'success');
-      }
-    );
-  }, [canDelete, records, showToast, fetchRecords]);
-
-  const openModal = useCallback((record = null) => {
-    if (record && !canUpdate) return showToast('No permission to edit', 'error');
-    if (!record && !canCreate) return showToast('No permission to create', 'error');
-    setEditingRecord(record);
-    setShowModal(true);
-  }, [canUpdate, canCreate, showToast]);
-
-  const closeModal = useCallback(() => { setShowModal(false); setEditingRecord(null); }, []);
-
-  const handleRecordSaved = useCallback(() => {
-    closeModal();
-    fetchRecords();
-    showToast('Request saved successfully!', 'success');
-  }, [closeModal, fetchRecords, showToast]);
-
-  const showConfirmation = useCallback((title, message, type, onConfirm) => {
-    setConfirmation({ show: true, title, message, type, onConfirm });
+  /* ── Generic confirmation (delete) ── */
+  const showDeleteConfirmation = useCallback((title, message, type, onConfirm) => {
+    setConfirmation({ show: true, title, message, type, onConfirm, loading: false });
   }, []);
-
   const hideConfirmation = useCallback(() => setConfirmation(p => ({ ...p, show: false })), []);
-
-  const handleConfirm = useCallback(() => {
-    if (confirmation.onConfirm) confirmation.onConfirm();
-    hideConfirmation();
+  const handleConfirm = useCallback(async () => {
+    if (!confirmation.onConfirm) return;
+    try {
+      setConfirmation(p => ({ ...p, loading: true }));
+      await confirmation.onConfirm();
+    } finally {
+      hideConfirmation();
+    }
   }, [confirmation, hideConfirmation]);
 
-  const handleSearch = useCallback((val) => setFilters(prev => ({ ...prev, search: val, page: 1 })), []);
-  const handleFilterChange = useCallback((field, val) => setFilters(prev => ({ ...prev, [field]: val, page: 1 })), []);
-  const handleLimitChange = useCallback((val) => setFilters(prev => ({ ...prev, limit: parseInt(val), page: 1 })), []);
-  const handlePageChange = useCallback((newPage) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) setFilters(prev => ({ ...prev, page: newPage }));
-  }, [pagination.totalPages]);
+  /* ── Reason dialog helpers (reject / cancel) ── */
+  const openReasonDialog = useCallback((opts) => {
+    setReasonDialog({
+      show: true,
+      title: opts.title,
+      message: opts.message,
+      tone: opts.tone || 'blue',
+      confirmText: opts.confirmText || 'Confirm',
+      reasonLabel: opts.reasonLabel || 'Reason',
+      reasonPlaceholder: opts.reasonPlaceholder || 'Enter a reason…',
+      onConfirm: opts.onConfirm,
+      loading: false,
+    });
+  }, []);
+  const closeReasonDialog = useCallback(() => setReasonDialog(p => ({ ...p, show: false })), []);
+  const handleReasonConfirm = useCallback(async (reason) => {
+    if (!reasonDialog.onConfirm) return;
+    try {
+      setReasonDialog(p => ({ ...p, loading: true }));
+      await reasonDialog.onConfirm(reason);
+    } finally {
+      closeReasonDialog();
+    }
+  }, [reasonDialog, closeReasonDialog]);
 
-  const clearFilters = useCallback(() => {
-    setFilters({ search: '', status: 'all', leave_type_id: 'all', emp_id: 'all', page: 1, limit: 15 });
-    showToast('Filters cleared', 'info');
-  }, [showToast]);
+  /* ── Optimistic row patch ── */
+  const patchRow = useCallback((id, changes, previousStatus) => {
+    setRecords(prev => prev.map(r => r.leave_req_id === id ? { ...r, ...changes } : r));
+    if (previousStatus && changes.status && previousStatus !== changes.status) {
+      setCounts(prev => {
+        const next = { ...prev, byStatus: { ...(prev.byStatus || {}) } };
+        if (next.byStatus[previousStatus] != null) {
+          next.byStatus[previousStatus] = Math.max(0, next.byStatus[previousStatus] - 1);
+        }
+        next.byStatus[changes.status] = (next.byStatus[changes.status] || 0) + 1;
+        return next;
+      });
+    }
+  }, []);
 
-  const hasActiveFilters = useMemo(() => filters.search !== '' || filters.status !== 'all' || filters.leave_type_id !== 'all' || filters.emp_id !== 'all', [filters]);
+  /* ── Bulk ── */
+  const handleBulkAction = useCallback(async () => {
+    if (!canBulk) { showToast('No permission for bulk actions', 'error'); return; }
+    if (!bulkAction || selected.length === 0) return;
 
-  const tabs = useMemo(() => {
-    const allCount = counts.total || 0;
-    const statusCounts = counts.byStatus || {};
-    return [
-      { id: 'all', name: 'All', count: allCount, icon: Filter },
-      { id: 'pending', name: 'Pending', count: statusCounts.pending || 0, icon: Clock },
-      { id: 'approved', name: 'Approved', count: statusCounts.approved || 0, icon: Check },
-      { id: 'rejected', name: 'Rejected', count: statusCounts.rejected || 0, icon: XCircle },
-    ];
-  }, [counts]);
+    if (bulkAction === 'delete') {
+      if (!canDelete) { showToast('No permission to delete', 'error'); return; }
+      showDeleteConfirmation('Delete Requests',
+        `Delete ${selected.length} request(s)? This cannot be undone.`, 'bulkDelete',
+        async () => {
+          const ids = [...selected];
+          setRecords(prev => prev.filter(r => !ids.includes(r.leave_req_id)));
+          setTotalItems(prev => Math.max(0, prev - ids.length));
+          setSelected([]); setBulkAction('');
+          try {
+            await Promise.all(ids.map(id => hrAPI.deleteLeaveRequest(id)));
+            showToast(`Deleted ${ids.length} request(s)`, 'success');
+          } catch {
+            showToast('Bulk delete failed — reloading', 'error');
+            fetchRecords();
+          }
+        });
+      return;
+    }
+
+    if (bulkAction === 'approve') {
+      if (!canApprove) { showToast('No permission', 'error'); return; }
+      showDeleteConfirmation(
+        'Approve Requests',
+        `Approve ${selected.length} request(s)?`,
+        'action',
+        async () => {
+          const ids = [...selected];
+          setSelected([]); setBulkAction('');
+          const results = await Promise.allSettled(ids.map(id => hrAPI.approveLeaveRequest(id)));
+          let ok = 0;
+          results.forEach((r, i) => {
+            if (r.status === 'fulfilled') {
+              ok++;
+              const prev = records.find(x => x.leave_req_id === ids[i])?.status;
+              patchRow(ids[i], { status: 'approved', approved_at: new Date().toISOString() }, prev);
+            }
+          });
+          showToast(`${ok} of ${ids.length} approved`, ok === ids.length ? 'success' : 'warning');
+        });
+      return;
+    }
+
+    if (bulkAction === 'reject') {
+      if (!canApprove) { showToast('No permission', 'error'); return; }
+      openReasonDialog({
+        title: 'Reject Requests',
+        message: `Reject ${selected.length} request(s)? A reason is required.`,
+        tone: 'red',
+        confirmText: 'Reject',
+        reasonLabel: 'Rejection Reason',
+        reasonPlaceholder: 'Enter rejection reason…',
+        onConfirm: async (reason) => {
+          const ids = [...selected];
+          setSelected([]); setBulkAction('');
+          const results = await Promise.allSettled(
+            ids.map(id => hrAPI.rejectLeaveRequest(id, reason))
+          );
+          let ok = 0;
+          results.forEach((r, i) => {
+            if (r.status === 'fulfilled') {
+              ok++;
+              const prev = records.find(x => x.leave_req_id === ids[i])?.status;
+              patchRow(ids[i], {
+                status: 'rejected',
+                rejected_at: new Date().toISOString(),
+                rejection_reason: reason,
+              }, prev);
+            }
+          });
+          showToast(`${ok} of ${ids.length} rejected`, ok === ids.length ? 'success' : 'warning');
+        },
+      });
+    }
+  }, [canBulk, canDelete, canApprove, bulkAction, selected, records, fetchRecords, showToast,
+      showDeleteConfirmation, openReasonDialog, patchRow]);
+
+  /* ── Approve (single) ── */
+  const handleApprove = useCallback((id) => {
+    if (!canApprove) { showToast('No permission to approve', 'error'); return; }
+    const rec = records.find(r => r.leave_req_id === id);
+    showDeleteConfirmation(
+      'Approve Request',
+      `Approve leave request for ${rec?.employee?.first_name || 'this employee'}?`,
+      'action',
+      async () => {
+        const prevStatus = rec?.status;
+        patchRow(id, { status: 'approved', approved_at: new Date().toISOString() }, prevStatus);
+        try {
+          await hrAPI.approveLeaveRequest(id);
+          showToast('Request approved', 'success');
+        } catch (err) {
+          patchRow(id, { status: prevStatus, approved_at: rec?.approved_at ?? null }, 'approved');
+          showToast(err.response?.data?.message || 'Approval failed', 'error');
+        }
+      });
+  }, [canApprove, records, showToast, showDeleteConfirmation, patchRow]);
+
+  /* ── Reject (single) — uses ReasonConfirmationModal ── */
+  const handleReject = useCallback((id) => {
+    if (!canApprove) { showToast('No permission to reject', 'error'); return; }
+    const rec = records.find(r => r.leave_req_id === id);
+    openReasonDialog({
+      title: 'Reject Request',
+      message: `Reject leave request for ${rec?.employee?.first_name || 'this employee'}? A reason is required.`,
+      tone: 'red',
+      confirmText: 'Reject',
+      reasonLabel: 'Rejection Reason',
+      reasonPlaceholder: 'Enter rejection reason…',
+      onConfirm: async (reason) => {
+        if (!reason || !reason.trim()) return;   // defensive guard
+        const prevStatus = rec?.status;
+        patchRow(id, {
+          status: 'rejected',
+          rejected_at: new Date().toISOString(),
+          rejection_reason: reason,
+        }, prevStatus);
+        try {
+          await hrAPI.rejectLeaveRequest(id, reason);
+          showToast('Request rejected', 'success');
+        } catch (err) {
+          patchRow(id, {
+            status: prevStatus,
+            rejected_at: rec?.rejected_at ?? null,
+            rejection_reason: rec?.rejection_reason ?? null,
+          }, 'rejected');
+          showToast(err.response?.data?.message || 'Rejection failed', 'error');
+        }
+      },
+    });
+  }, [canApprove, records, showToast, openReasonDialog, patchRow]);
+
+  /* ── Cancel (single) — uses ReasonConfirmationModal ── */
+  const handleCancel = useCallback((id) => {
+    if (!canCancel) { showToast('No permission to cancel', 'error'); return; }
+    const rec = records.find(r => r.leave_req_id === id);
+    openReasonDialog({
+      title: 'Cancel Leave',
+      message: `Cancel leave request for ${rec?.employee?.first_name || 'this employee'}? Balance will be restored. A reason is required.`,
+      tone: 'red',
+      confirmText: 'Cancel Leave',
+      reasonLabel: 'Cancellation Reason',
+      reasonPlaceholder: 'Enter cancellation reason…',
+      onConfirm: async (reason) => {
+        if (!reason || !reason.trim()) return;   // defensive guard
+        const prevStatus = rec?.status;
+        patchRow(id, {
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancellation_reason: reason,
+        }, prevStatus);
+        try {
+          await hrAPI.cancelLeaveRequest(id, reason);
+          showToast('Request cancelled and balance restored', 'success');
+        } catch (err) {
+          patchRow(id, {
+            status: prevStatus,
+            cancelled_at: rec?.cancelled_at ?? null,
+            cancellation_reason: rec?.cancellation_reason ?? null,
+          }, 'cancelled');
+          showToast(err.response?.data?.message || 'Cancellation failed', 'error');
+        }
+      },
+    });
+  }, [canCancel, records, showToast, openReasonDialog, patchRow]);
+
+  /* ── Delete ── */
+  const handleDelete = useCallback((id) => {
+    if (!canDelete) { showToast('No permission to delete', 'error'); return; }
+    const rec = records.find(r => r.leave_req_id === id);
+    const name = rec?.employee ? `${rec.employee.first_name} ${rec.employee.last_name}` : 'this request';
+    showDeleteConfirmation('Delete Request',
+      `Delete request for ${name}? This cannot be undone.`, 'delete',
+      async () => {
+        const snapshot = records;
+        const snapTotal = totalItems;
+        setRecords(prev => prev.filter(r => r.leave_req_id !== id));
+        setTotalItems(prev => Math.max(0, prev - 1));
+        try {
+          await hrAPI.deleteLeaveRequest(id);
+          showToast('Request deleted', 'success');
+        } catch {
+          setRecords(snapshot); setTotalItems(snapTotal);
+          showToast('Failed to delete', 'error');
+        }
+      });
+  }, [canDelete, records, totalItems, showToast, showDeleteConfirmation]);
+
+  const openModal = useCallback((record = null, readOnlyMode = false) => {
+    if (record && !readOnlyMode && !canUpdate) { showToast('No permission to edit', 'error'); return; }
+    if (!record && !canCreate) { showToast('No permission to create', 'error'); return; }
+    setEditingRecord(record); setIsReadOnly(readOnlyMode); setShowModal(true);
+  }, [canUpdate, canCreate, showToast]);
+
+  const closeModal = useCallback(() => { setShowModal(false); setEditingRecord(null); setIsReadOnly(false); }, []);
+  const handleRecordSaved = useCallback(() => {
+    closeModal(); fetchRecords(); showToast('Request saved successfully', 'success');
+  }, [closeModal, fetchRecords, showToast]);
+
+  const filterEmployeeLabel = useMemo(() => {
+    if (!filterEmployee) return 'All Employees';
+    const name = filterEmployee.display_name
+      || [filterEmployee.first_name, filterEmployee.last_name].filter(Boolean).join(' ')
+      || filterEmployee.email || `ID: ${filterEmployee.emp_id}`;
+    return filterEmployee.employee_code ? `${name} (${filterEmployee.employee_code})` : name;
+  }, [filterEmployee]);
+
+  /* ── Export (unchanged) ── */
+  const exportToExcel = useCallback(async () => {
+    if (!canExport) { showToast('No permission to export', 'error'); return; }
+    try {
+      setExportLoading(true);
+      const fetchLimit = Math.min(Math.max(totalItems, 100), 10000);
+      const payload = { page: 1, limit: fetchLimit, sortBy: 'created_at', sortOrder: 'DESC' };
+      if (debouncedSearch.trim()) {
+        payload.search = debouncedSearch.trim();
+        payload.searchFields = 'employee_name,status,reason';
+      }
+      const fc = buildFilterConditions();
+      if (Object.keys(fc).length > 0) payload.filters = fc;
+
+      const response = await hrAPI.getLeaveRequestsAll(payload);
+      const rows = response.data?.rows || [];
+      if (!rows.length) { showToast('No data to export', 'error'); return; }
+
+      const data = rows.map(r => ({
+        'ID': r.leave_req_id ?? '',
+        'Employee': r.employee ? `${r.employee.first_name || ''} ${r.employee.last_name || ''}`.trim() : '',
+        'Employee Code': r.employee?.employee_code || '',
+        'Leave Type': r.leave_type?.name || '',
+        'Leave Code': r.leave_type?.code || '',
+        'Start Date': r.start_date ? formatDate(r.start_date) : '',
+        'End Date': r.end_date ? formatDate(r.end_date) : '',
+        'Days': r.days ?? 0,
+        'Is Half Day': r.is_half_day ? 'Yes' : 'No',
+        'Half Day On': r.half_day_on ? formatDate(r.half_day_on) : '',
+        'Half Day Session': r.half_day_session || '',
+        'Reason': r.reason || '',
+        'Emergency': r.emergency_leave ? 'Yes' : 'No',
+        'Contact During Leave': r.contact_during_leave || '',
+        'Status': r.status || '',
+        'Approval Level': r.current_approval_level ?? 0,
+        'Approved By': r.approved_by ?? '',
+        'Approved At': r.approved_at ? formatDateTime(r.approved_at) : '',
+        'Rejected By': r.rejected_by ?? '',
+        'Rejected At': r.rejected_at ? formatDateTime(r.rejected_at) : '',
+        'Rejection Reason': r.rejection_reason || '',
+        'Cancelled By': r.cancelled_by ?? '',
+        'Cancelled At': r.cancelled_at ? formatDateTime(r.cancelled_at) : '',
+        'Cancellation Reason': r.cancellation_reason || '',
+        'Attachment URL': r.attachment_url || '',
+        'Attachments': r.attachments?.length || 0,
+        'Balance Before': r.balance_before ?? '',
+        'Balance After': r.balance_after ?? '',
+        'Notified Employee': r.notified_employee ? 'Yes' : 'No',
+        'Notified Manager': r.notified_manager ? 'Yes' : 'No',
+        'Created By': r.created_by ?? '',
+        'Updated By': r.updated_by ?? '',
+        'Created At': r.createdAt ? formatDateTime(r.createdAt) : '',
+        'Updated At': r.updatedAt ? formatDateTime(r.updatedAt) : '',
+        'Deleted At': r.deletedAt ? formatDateTime(r.deletedAt) : '',
+      }));
+
+      const rules = [
+        { Section: 'Status', Rule: 'pending', Meaning: 'Awaiting manager approval' },
+        { Section: 'Status', Rule: 'approved', Meaning: 'Approved — leave balance deducted' },
+        { Section: 'Status', Rule: 'partially_approved', Meaning: 'Approved for some dates only' },
+        { Section: 'Status', Rule: 'rejected', Meaning: 'Rejected by approver' },
+        { Section: 'Status', Rule: 'cancelled', Meaning: 'Cancelled — balance restored' },
+        { Section: 'Status', Rule: 'withdrawn', Meaning: 'Withdrawn by employee' },
+        { Section: 'Workflow', Rule: 'pending → (Approve) → approved', Meaning: 'Manager approval' },
+        { Section: 'Workflow', Rule: 'pending → (Reject) → rejected', Meaning: 'Manager rejection (reason required)' },
+        { Section: 'Workflow', Rule: 'approved → (Cancel) → cancelled', Meaning: 'Cancellation restores balance (reason required)' },
+        { Section: 'Workflow', Rule: 'New requests always start as Pending', Meaning: 'Create flow' },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const wsData = XLSX.utils.json_to_sheet(data);
+      const wsRules = XLSX.utils.json_to_sheet(rules);
+      wsData['!cols'] = [
+        { wch: 8 }, { wch: 26 }, { wch: 14 }, { wch: 18 }, { wch: 12 },
+        { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 12 }, { wch: 14 },
+        { wch: 16 }, { wch: 30 }, { wch: 12 }, { wch: 20 }, { wch: 16 },
+        { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 20 },
+        { wch: 30 }, { wch: 16 }, { wch: 20 }, { wch: 30 }, { wch: 30 },
+        { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+        { wch: 16 }, { wch: 16 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+      ];
+      wsRules['!cols'] = [{ wch: 14 }, { wch: 52 }, { wch: 52 }];
+
+      XLSX.utils.book_append_sheet(wb, wsData, 'Leave Requests');
+      XLSX.utils.book_append_sheet(wb, wsRules, 'Rules & Legend');
+
+      XLSX.writeFile(wb, `leave_requests_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      showToast(`Exported ${data.length} request(s) to Excel`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Export failed', 'error');
+    } finally {
+      setExportLoading(false);
+    }
+  }, [canExport, totalItems, debouncedSearch, buildFilterConditions, showToast]);
 
   return (
-    <div className="space-y-3 p-3 pt-0">
+    <div className="flex flex-col h-full p-3 pt-0 gap-3 overflow-hidden">
       <Suspense fallback={null}>
         {toast && <Toast toast={toast} onClose={clearToast} />}
       </Suspense>
 
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-1.5">
-        <p className="text-xs text-gray-600">Manage leave requests</p>
-        <div className="flex gap-1.5">
-          {canImport && (
-            <div className="flex gap-0.5">
-              <button
-                onClick={() => {
-                  const csvContent = sampleRequests.map(row => row.map(f => `"${f}"`).join(',')).join('\n');
-                  const blob = new Blob([csvContent], { type: 'text/csv' });
-                  const link = document.createElement('a');
-                  link.href = URL.createObjectURL(blob);
-                  link.download = 'leave_requests_import_template.csv';
-                  link.click();
-                  showToast('Sample CSV downloaded', 'info');
-                }}
-                className="flex items-center gap-0.5 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50"
-              >
-                <FileText className="w-3 h-3" /> Sample
-              </button>
-              <button onClick={() => setShowImportModal(true)} className="flex items-center gap-0.5 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50">
-                <Upload className="w-3 h-3" /> Import
-              </button>
-            </div>
-          )}
+      {/* ── TOP TOOLBAR ── */}
+      <div className="flex-shrink-0 flex flex-col lg:flex-row lg:items-center lg:justify-between">
+        <div><p className="text-xs text-gray-600">Manage leave requests</p></div>
+        <div className="flex flex-wrap gap-1 mt-2 lg:mt-0 items-center">
+          <button type="button" onClick={() => setShowEmployeeFilterModal(true)}
+            className={`flex items-center gap-1 px-2 py-1 border rounded text-xs font-medium transition-colors ${filterEmployee ? 'border-primary-300 bg-primary-50 text-primary-700'
+              : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+            title="Filter by employee">
+            <User className="w-3 h-3" />
+            <span className="max-w-[140px] truncate">{filterEmployeeLabel}</span>
+            {filterEmployee && (
+              <span role="button" tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); clearEmployeeFilter(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); clearEmployeeFilter(); } }}
+                className="ml-0.5 inline-flex items-center justify-center w-3.5 h-3.5 rounded hover:bg-primary-100 cursor-pointer"
+                title="Clear employee filter">
+                <X className="w-2.5 h-2.5" />
+              </span>
+            )}
+          </button>
+
+          <select value={filters.leave_type_id}
+            onChange={e => setFilters(p => ({ ...p, leave_type_id: e.target.value, page: 1 }))}
+            className="text-xs border border-gray-300 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-primary-500 bg-white">
+            <option value="all">All Leave Types</option>
+            {leaveTypes.map(lt => (
+              <option key={lt.leave_type_id} value={lt.leave_type_id}>
+                {lt.name}{lt.code ? ` (${lt.code})` : ''}
+              </option>
+            ))}
+          </select>
+
+          <button type="button" onClick={handleGetData}
+            className="flex items-center gap-1 px-2 py-1 bg-primary-600 text-white rounded text-xs font-medium hover:bg-primary-700">
+            <RefreshCw className="w-3 h-3" /> Get Data
+          </button>
+          <button type="button" onClick={handleRefresh}
+            className="flex items-center gap-1 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50">
+            <RefreshCw className="w-3 h-3" /> Refresh
+          </button>
+
           {canExport && (
-            <button onClick={exportToCSV} disabled={exportLoading} className="flex items-center gap-0.5 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-              <Download className="w-3 h-3" /> {exportLoading ? 'Exporting...' : 'Export'}
+            <button type="button" onClick={exportToExcel} disabled={exportLoading}
+              className="flex items-center gap-0.5 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              title="Export current filtered data to Excel (.xlsx)">
+              <Download className="w-2.5 h-2.5" /> {exportLoading ? 'Exporting…' : 'Export'}
             </button>
           )}
+
           {canCreate && (
-            <button onClick={() => openModal()} className="flex items-center gap-0.5 px-2 py-0.5 bg-primary-600 hover:bg-primary-700 text-white rounded text-xs font-medium">
-              <Plus className="w-3 h-3" /> New Request
+            <button type="button" onClick={() => openModal()}
+              className="flex items-center gap-0.5 px-2 py-0.5 bg-primary-600 hover:bg-primary-700 text-white rounded text-xs font-medium">
+              <Plus className="w-2.5 h-2.5" /> New Request
             </button>
           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0">
-        <div className="p-2 border-b border-gray-200">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-1.5">
-            <div className="flex space-x-0.5 bg-gray-100 p-0.5 rounded">
+      {/* ── MAIN CARD ── */}
+      <div className="flex-1 min-h-0 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col">
+        <div className="flex-shrink-0 p-2.5 border-b border-gray-200">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-2 lg:space-y-0">
+            <div className="flex space-x-0.5 bg-gray-100 p-0.5 rounded-md overflow-x-auto">
               {tabs.map(tab => {
                 const Icon = tab.icon;
+                const active = activeTab === tab.id;
                 return (
-                  <button key={tab.id} onClick={() => handleFilterChange('status', tab.id)}
-                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all duration-200 flex items-center gap-0.5 ${
-                      (tab.id === 'all' && filters.status === 'all') || filters.status === tab.id
-                        ? 'bg-white text-primary-600 shadow-xs border border-primary-200' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-                    }`}>
-                    <Icon className={`w-3 h-3 ${(tab.id === 'all' && filters.status === 'all') || filters.status === tab.id ? 'text-primary-600' : ''}`} /> {tab.name}
-                    <span className={`px-0.5 py-0.5 text-[9px] rounded-full min-w-3 flex items-center justify-center ${
-                      (tab.id === 'all' && filters.status === 'all') || filters.status === tab.id ? 'bg-primary-100 text-primary-700' : 'bg-gray-200 text-gray-700'
-                    }`}>{tab.count}</span>
+                  <button key={tab.id} onClick={() => handleStatusChange(tab.id)}
+                    className={`px-1.5 py-1 text-xs font-medium rounded-sm transition-all duration-200 flex items-center gap-1 whitespace-nowrap ${active ? 'bg-white text-primary-600 shadow-xs border border-primary-200'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'}`}>
+                    <Icon className={`w-3 h-3 ${active ? tab.color : ''}`} />
+                    {tab.name}
+                    <span className={`px-0.5 py-0.5 text-xs rounded-full min-w-4 flex items-center justify-center ${active ? 'bg-primary-100 text-primary-700' : 'bg-gray-200 text-gray-700'}`}>{tab.count}</span>
                   </button>
                 );
               })}
             </div>
-            <div className="flex flex-col sm:flex-row gap-1.5">
+
+            <div className="flex items-center gap-1 flex-wrap">
+              <select value={filters.limit} onChange={e => handleLimitChange(e.target.value)}
+                className="px-1.5 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 bg-white">
+                <option value="50">50 per page</option>
+                <option value="100">100 per page</option>
+                <option value="150">150 per page</option>
+                <option value="200">200 per page</option>
+                <option value="250">250 per page</option>
+                <option value="300">300 per page</option>
+              </select>
+
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                <input type="text" placeholder="Search employees, status, reason..."
+                  value={filters.search} onChange={e => handleSearchChange(e.target.value)}
+                  className="pl-7 pr-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 w-full sm:w-56 text-xs" />
+              </div>
+
               {canBulk && selected.length > 0 && (
-                <div className="flex items-center gap-1 bg-primary-50 rounded-md px-1.5 py-0.5">
-                  <select value={bulkAction} onChange={e => setBulkAction(e.target.value)} className="text-[10px] border border-primary-300 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-primary-500 bg-white">
-                    <option value="">Bulk</option>
+                <div className="flex items-center gap-1.5 bg-primary-50 rounded-md px-1.5 py-0.5">
+                  <select value={bulkAction} onChange={e => setBulkAction(e.target.value)}
+                    className="text-xs border border-primary-300 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-primary-500 bg-white">
+                    <option value="">Bulk Actions</option>
                     {canApprove && <option value="approve">Approve</option>}
                     {canApprove && <option value="reject">Reject</option>}
                     {canDelete && <option value="delete">Delete</option>}
                   </select>
-                  <button onClick={handleBulkAction} disabled={!bulkAction} className="px-1.5 py-0.5 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 text-[10px] font-medium">Apply</button>
-                  <span className="text-[10px] text-primary-700 font-medium">{selected.length} sel</span>
+                  <button onClick={handleBulkAction} disabled={!bulkAction}
+                    className="px-1.5 py-0.5 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 text-xs font-medium">
+                    Apply
+                  </button>
+                  <span className="text-xs text-primary-700 font-medium">{selected.length} selected</span>
                 </div>
               )}
-              <button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className={`px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-0.5 transition-all ${
-                  showAdvancedFilters || hasActiveFilters ? 'bg-primary-100 text-primary-700 border border-primary-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
-                }`}>
-                <SlidersHorizontal className="w-3 h-3" /> Filters {hasActiveFilters && '•'}
-              </button>
-              <div className="relative">
-                <Search className="absolute left-1.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-                <input type="text" placeholder="Search..." value={filters.search} onChange={e => handleSearch(e.target.value)}
-                  className="pl-6 pr-2 py-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 w-full sm:w-36 text-[10px]" />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          {loading ? (
+            <div className="flex items-center justify-center p-8 text-sm text-gray-500">Loading...</div>
+          ) : error ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="text-center">
+                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                </div>
+                <h3 className="text-sm font-bold text-gray-900 mb-1">Unable to Load Requests</h3>
+                <p className="text-xs text-gray-600 mb-3">{error}</p>
+                <button onClick={fetchRecords} className="px-2 py-1 bg-primary-500 text-white rounded hover:bg-primary-600 text-xs font-medium">
+                  Try Again
+                </button>
+              </div>
+            </div>
+          ) : records.length > 0 ? (
+            <table className="w-full min-w-max">
+              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                <tr>
+                  {canBulk && (
+                    <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider w-8">
+                      <input type="checkbox"
+                        checked={selected.length === records.length && records.length > 0}
+                        onChange={toggleSelectAll} disabled={!canBulk}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-1 focus:ring-primary-500 w-3 h-3" />
+                    </th>
+                  )}
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Leave Type</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Start</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">End</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Days</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Half Day</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">HD On</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Session</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Emergency</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Lvl</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Approved By</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Approved At</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Rejected By</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Rejected At</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Reject Reason</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Cancelled By</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Cancelled At</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Cancel Reason</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Attachment</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Att. Cnt</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Bal Before</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Bal After</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Notif Emp</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Notif Mgr</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">CBy</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">UBy</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Updated</th>
+                  <th className="px-0.5 py-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Deleted</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {records.map(rec => (
+                  <RequestRow key={rec.leave_req_id} record={rec}
+                    canBulk={canBulk} selected={selected} toggleSelection={toggleSelection}
+                    canUpdate={canUpdate} canDelete={canDelete}
+                    canApprove={canApprove} canCancel={canCancel}
+                    openModal={openModal} handleDelete={handleDelete}
+                    handleApprove={handleApprove} handleReject={handleReject} handleCancel={handleCancel} />
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="flex items-center justify-center p-6">
+              <div className="text-center">
+                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                  <Users className="w-4 h-4 text-gray-400" />
+                </div>
+                <h3 className="text-sm font-medium text-gray-900 mb-1">No leave requests found</h3>
+                <p className="text-xs text-gray-600 mb-3">
+                  {hasActiveFilters ? 'No records match your filter criteria.' : 'Get started by creating your first leave request.'}
+                </p>
+                {canCreate && (
+                  <button onClick={() => openModal()}
+                    className="bg-primary-600 hover:bg-primary-700 text-white px-2 py-1 rounded font-medium flex items-center gap-1 text-xs mx-auto">
+                    <Plus className="w-2.5 h-2.5" /> New Request
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 border-t border-gray-200 bg-gray-50 px-2 py-1.5">
+          <div className="flex flex-wrap items-center gap-3 text-[9px] text-gray-700">
+            <span className="font-medium text-gray-600">Status Legend:</span>
+            <div className="flex items-center gap-1"><StatusBadge status="pending" /><span>Awaiting approval</span></div>
+            <div className="flex items-center gap-1"><StatusBadge status="approved" /><span>Approved (balance deducted)</span></div>
+            <div className="flex items-center gap-1"><StatusBadge status="partially_approved" /><span>Partially approved</span></div>
+            <div className="flex items-center gap-1"><StatusBadge status="rejected" /><span>Rejected</span></div>
+            <div className="flex items-center gap-1"><StatusBadge status="cancelled" /><span>Cancelled (balance restored)</span></div>
+            <div className="flex items-center gap-1"><StatusBadge status="withdrawn" /><span>Withdrawn</span></div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-[9px] text-gray-600 mt-1">
+            <span className="font-medium text-gray-600">Workflow:</span>
+            <span className="inline-flex items-center gap-1">
+              <StatusBadge status="pending" />
+              <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
+              <span className="text-gray-700">(Approve)</span>
+              <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
+              <StatusBadge status="approved" />
+            </span>
+            <span className="text-gray-400">|</span>
+            <span className="inline-flex items-center gap-1">
+              <StatusBadge status="pending" />
+              <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
+              <span className="text-gray-700">(Reject — reason required)</span>
+              <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
+              <StatusBadge status="rejected" />
+            </span>
+            <span className="text-gray-400">|</span>
+            <span className="inline-flex items-center gap-1">
+              <StatusBadge status="approved" />
+              <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
+              <span className="text-gray-700">(Cancel — reason required)</span>
+              <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
+              <StatusBadge status="cancelled" />
+            </span>
+            <span className="text-gray-400">|</span>
+            <span className="italic text-gray-500">
+              New requests always start as <span className="font-medium">Pending</span>.
+            </span>
+          </div>
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex-shrink-0 border-t border-gray-200 bg-white">
+            <div className="flex flex-col sm:flex-row items-center justify-between px-3 py-1.5 gap-2">
+              <div className="flex items-center space-x-1 text-xs text-gray-600">
+                <span>Showing</span>
+                <span className="font-medium">{(filters.page - 1) * filters.limit + 1}</span>
+                <span>to</span>
+                <span className="font-medium">{Math.min(filters.page * filters.limit, totalItems)}</span>
+                <span>of</span>
+                <span className="font-medium">{totalItems}</span>
+              </div>
+              <div className="flex items-center space-x-0.5">
+                <button onClick={() => handlePageChange(1)} disabled={filters.page === 1}
+                  className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"><ChevronsLeft className="w-3 h-3" /></button>
+                <button onClick={() => handlePageChange(filters.page - 1)} disabled={filters.page === 1}
+                  className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"><ChevronLeft className="w-3 h-3" /></button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) pageNum = i + 1;
+                  else if (filters.page <= 3) pageNum = i + 1;
+                  else if (filters.page >= totalPages - 2) pageNum = totalPages - 4 + i;
+                  else pageNum = filters.page - 2 + i;
+                  return (
+                    <button key={pageNum} onClick={() => handlePageChange(pageNum)}
+                      className={`w-6 h-6 text-xs rounded border transition-colors ${filters.page === pageNum ? 'bg-primary-600 text-white border-primary-600'
+                        : 'border-gray-300 hover:bg-gray-50 text-gray-700'}`}>{pageNum}</button>
+                  );
+                })}
+                <button onClick={() => handlePageChange(filters.page + 1)} disabled={filters.page === totalPages}
+                  className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"><ChevronRight className="w-3 h-3" /></button>
+                <button onClick={() => handlePageChange(totalPages)} disabled={filters.page === totalPages}
+                  className="p-0.5 rounded border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"><ChevronsRight className="w-3 h-3" /></button>
               </div>
             </div>
           </div>
-
-          {showAdvancedFilters && (
-            <div className="mt-1.5 pt-1.5 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                <div>
-                  <label className="block text-[10px] font-medium text-gray-700 mb-0.5">Status</label>
-                  <select value={filters.status} onChange={e => handleFilterChange('status', e.target.value)} className="w-full px-1.5 py-0.5 text-[10px] border border-gray-300 rounded focus:ring-1 focus:ring-primary-500">
-                    <option value="all">All</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="partially_approved">Partially Approved</option>
-                    <option value="rejected">Rejected</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="withdrawn">Withdrawn</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-medium text-gray-700 mb-0.5">Leave Type</label>
-                  <select value={filters.leave_type_id} onChange={e => handleFilterChange('leave_type_id', e.target.value)} className="w-full px-1.5 py-0.5 text-[10px] border border-gray-300 rounded focus:ring-1 focus:ring-primary-500">
-                    <option value="all">All</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-medium text-gray-700 mb-0.5">Employee</label>
-                  <select value={filters.emp_id} onChange={e => handleFilterChange('emp_id', e.target.value)} className="w-full px-1.5 py-0.5 text-[10px] border border-gray-300 rounded focus:ring-1 focus:ring-primary-500">
-                    <option value="all">All</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-medium text-gray-700 mb-0.5">Per Page</label>
-                  <select value={filters.limit} onChange={e => handleLimitChange(e.target.value)} className="w-full px-1.5 py-0.5 text-[10px] border border-gray-300 rounded focus:ring-1 focus:ring-primary-500">
-                    <option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="25">25</option><option value="50">50</option>
-                  </select>
-                </div>
-              </div>
-              {hasActiveFilters && (
-                <div className="flex items-center justify-between p-1.5 bg-blue-50 rounded border border-blue-200 mt-1.5">
-                  <div className="flex items-center gap-0.5 flex-wrap">
-                    <span className="text-[10px] font-medium text-blue-800">Filters:</span>
-                    {filters.search && <span className="inline-flex items-center px-0.5 py-0.5 bg-blue-100 text-blue-800 text-[9px] rounded border border-blue-200">Search: "{filters.search}" <button onClick={() => handleSearch('')} className="ml-0.5 text-blue-600 hover:text-blue-800"><X className="w-2.5 h-2.5" /></button></span>}
-                    {filters.status !== 'all' && <span className="inline-flex items-center px-0.5 py-0.5 bg-blue-100 text-blue-800 text-[9px] rounded border border-blue-200">Status: {filters.status} <button onClick={() => handleFilterChange('status', 'all')}><X className="w-2.5 h-2.5" /></button></span>}
-                  </div>
-                  <button onClick={clearFilters} className="text-[10px] text-blue-600 hover:text-blue-800 font-medium">Clear</button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-hidden flex flex-col">
-          {loading ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-gray-500">Loading...</div>
-          ) : error ? (
-            <div className="flex-1 flex items-center justify-center p-6">
-              <div className="text-center"><p className="text-sm text-red-600">{error}</p><button onClick={fetchRecords} className="mt-2 px-3 py-1 bg-primary-600 text-white rounded text-xs">Retry</button></div>
-            </div>
-          ) : records.length > 0 ? (
-            <div className="flex-1 overflow-auto">
-              <table className="w-full min-w-[2200px] text-[10px]">
-                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
-                  <tr>
-                    {canBulk && <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider w-6 sticky left-0 bg-gray-50 z-20"><input type="checkbox" checked={selected.length === records.length && records.length > 0} onChange={toggleSelectAll} className="rounded border-gray-300 text-primary-600 w-3 h-3" /></th>}
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">ID</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Employee</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Leave Type</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Start</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">End</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Days</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Half Day</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">HD On</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">HD Session</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Reason</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Emergency</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Contact</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Status</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Approval Lvl</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Approved By</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Approved At</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Rejected By</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Rejected At</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Reject Reason</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Cancelled By</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Cancelled At</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Cancel Reason</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Attachment</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Attachments</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Bal Before</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Bal After</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Notif Emp</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Notif Mgr</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Created By</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Updated By</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Created</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Updated</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider text-[10px]">Deleted</th>
-                    <th className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-20 text-[10px]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {records.map(record => (
-                    <RequestRow
-                      key={record.leave_req_id}
-                      record={record}
-                      canBulk={canBulk}
-                      selected={selected}
-                      toggleSelection={toggleSelection}
-                      canUpdate={canUpdate}
-                      canDelete={canDelete}
-                      openModal={openModal}
-                      handleDelete={handleDelete}
-                      handleApprove={handleApprove}
-                      handleReject={handleReject}
-                      handleCancel={handleCancel}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center p-6">
-              <div className="text-center"><p className="text-sm text-gray-600">No leave requests found.</p></div>
-            </div>
-          )}
-
-          {pagination.totalPages > 1 && (
-            <div className="flex-shrink-0 border-t border-gray-200 bg-white p-2 flex flex-col sm:flex-row items-center justify-between gap-1.5">
-              <div className="text-[10px] text-gray-600">Showing {(filters.page - 1) * filters.limit + 1} to {Math.min(filters.page * filters.limit, pagination.totalItems)} of {pagination.totalItems}</div>
-              <div className="flex items-center space-x-0.5">
-                <button onClick={() => handlePageChange(1)} disabled={filters.page === 1} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronsLeft className="w-3 h-3" /></button>
-                <button onClick={() => handlePageChange(filters.page - 1)} disabled={filters.page === 1} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronLeft className="w-3 h-3" /></button>
-                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                  let p = i + 1;
-                  if (pagination.totalPages > 5) {
-                    if (filters.page <= 3) p = i + 1;
-                    else if (filters.page >= pagination.totalPages - 2) p = pagination.totalPages - 4 + i;
-                    else p = filters.page - 2 + i;
-                  }
-                  return <button key={p} onClick={() => handlePageChange(p)} className={`w-6 h-6 text-[10px] rounded border transition-colors ${filters.page === p ? 'bg-primary-600 text-white border-primary-600' : 'border-gray-300 hover:bg-gray-50 text-gray-700'}`}>{p}</button>
-                })}
-                <button onClick={() => handlePageChange(filters.page + 1)} disabled={filters.page === pagination.totalPages} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronRight className="w-3 h-3" /></button>
-                <button onClick={() => handlePageChange(pagination.totalPages)} disabled={filters.page === pagination.totalPages} className="p-0.5 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-50"><ChevronsRight className="w-3 h-3" /></button>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
+      {/* ── MODALS ── */}
       <Suspense fallback={null}>
         {showModal && (
-          <LeaveRequestModal show={showModal} record={editingRecord} onClose={closeModal} onSaved={handleRecordSaved} />
+          <LeaveRequestModal show={showModal} record={editingRecord} readOnly={isReadOnly}
+            onClose={closeModal} onSaved={handleRecordSaved} />
         )}
       </Suspense>
 
       <Suspense fallback={null}>
-        {showImportModal && (
-          <ImportModal
-            show={showImportModal}
-            onClose={() => setShowImportModal(false)}
-            onUpload={handleImportUpload}
-            moduleName="Leave Requests"
-            requiredHeaders={['emp_id', 'leave_type_id', 'start_date', 'end_date', 'days']}
-            sampleRows={sampleRequests}
-            formatDescription="Required: emp_id, leave_type_id, start_date, end_date, days. Optional: reason, status."
-            validateRow={(row, i) => {
-              if (!row.emp_id) throw new Error(`Row ${i+1}: emp_id required`);
-              if (!row.leave_type_id) throw new Error(`Row ${i+1}: leave_type_id required`);
-              if (!row.start_date || !row.end_date) throw new Error(`Row ${i+1}: start_date and end_date required`);
-            }}
-          />
+        {showEmployeeFilterModal && (
+          <EmployeeSelectionModal show={showEmployeeFilterModal}
+            onClose={() => setShowEmployeeFilterModal(false)}
+            onSelect={handleEmployeeFilterSelect}
+            selectedEmployeeId={filterEmployee?.emp_id || null} />
         )}
       </Suspense>
 
+      {/* Generic confirmation — DELETE only */}
       <Suspense fallback={null}>
         {confirmation.show && (
           <ConfirmationModal
@@ -767,9 +1180,24 @@ const LeaveRequestManagement = () => {
             type={confirmation.type}
             onConfirm={handleConfirm}
             onCancel={hideConfirmation}
+            loading={confirmation.loading}
           />
         )}
       </Suspense>
+
+      {/* Reason confirmation — REJECT / CANCEL only */}
+      <ReasonConfirmationModal
+        show={reasonDialog.show}
+        title={reasonDialog.title}
+        message={reasonDialog.message}
+        tone={reasonDialog.tone}
+        confirmText={reasonDialog.confirmText}
+        reasonLabel={reasonDialog.reasonLabel}
+        reasonPlaceholder={reasonDialog.reasonPlaceholder}
+        onConfirm={handleReasonConfirm}
+        onCancel={closeReasonDialog}
+        loading={reasonDialog.loading}
+      />
     </div>
   );
 };

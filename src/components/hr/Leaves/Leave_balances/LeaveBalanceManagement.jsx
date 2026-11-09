@@ -3,19 +3,20 @@ import React, {
   useState, useEffect, useCallback, useMemo, useContext, memo, lazy, Suspense,
 } from 'react';
 import {
-  Search, Edit, Trash2, Plus, RefreshCw, Eye,
+  Search, Edit, Trash2, Plus, RefreshCw, Eye, Download,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   X, CheckCircle, AlertCircle, Clock, Archive,
   User, Users, Ban, ArrowRight,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { hrAPI } from '../../../../services/api';
 import { AuthContext } from '../../../../context/AuthContext';
 import { usePermissions } from '../../../../hooks/usePermissions';
 
-const LeaveBalanceModal = lazy(() => import('./LeaveBalanceModal'));
-const ConfirmationModal = lazy(() => import('../../../../components/common/ConfirmationModal'));
-const Toast = lazy(() => import('../../../../components/common/Toast'));
-const EmployeeSelectionModal = lazy(() => import('../../Employees/EmployeeSelectionModal'));
+const LeaveBalanceModal        = lazy(() => import('./LeaveBalanceModal'));
+const ConfirmationModal        = lazy(() => import('../../../../components/common/ConfirmationModal'));
+const Toast                    = lazy(() => import('../../../../components/common/Toast'));
+const EmployeeSelectionModal   = lazy(() => import('../../Employees/EmployeeSelectionModal'));
 
 /* ──────────────────────────────────────────────────────────────────
    HELPERS
@@ -48,16 +49,16 @@ function useDebounce(value, delay = 300) {
   return debounced;
 }
 
-const formatYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const endOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-const subDays = (d, n) => { const r = new Date(d); r.setDate(d.getDate() - n); return r; };
-const subMonths = (d, n) => { const r = new Date(d); r.setMonth(d.getMonth() - n); if (r.getDate() !== d.getDate()) r.setDate(0); return r; };
-const subYears = (d, n) => { const r = new Date(d); r.setFullYear(d.getFullYear() - n); return r; };
+const formatYMD    = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const startOfDay   = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const endOfDay     = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+const subDays      = (d, n) => { const r = new Date(d); r.setDate(d.getDate() - n); return r; };
+const subMonths    = (d, n) => { const r = new Date(d); r.setMonth(d.getMonth() - n); if (r.getDate() !== d.getDate()) r.setDate(0); return r; };
+const subYears     = (d, n) => { const r = new Date(d); r.setFullYear(d.getFullYear() - n); return r; };
 const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
-const endOfMonth = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-const startOfYear = (d) => new Date(d.getFullYear(), 0, 1);
-const endOfYear = (d) => new Date(d.getFullYear(), 11, 31, 23, 59, 59, 999);
+const endOfMonth   = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+const startOfYear  = (d) => new Date(d.getFullYear(), 0, 1);
+const endOfYear    = (d) => new Date(d.getFullYear(), 11, 31, 23, 59, 59, 999);
 
 /* ──────────────────────────────────────────────────────────────────
    QUICK ACTIONS
@@ -230,12 +231,13 @@ const LeaveBalanceManagement = () => {
   const { user: authUser } = useContext(AuthContext);
   const { hasPermission, isAdmin } = usePermissions();
 
-  const canManage = useMemo(() => isAdmin, [isAdmin]);
-  const canCreate = useMemo(() => hasPermission('create', 'leavebalance', 'A4') || canManage, [hasPermission, canManage]);
-  const canUpdate = useMemo(() => hasPermission('update', 'leavebalance', 'A4') || canManage, [hasPermission, canManage]);
+  const canManage       = useMemo(() => isAdmin, [isAdmin]);
+  const canCreate       = useMemo(() => hasPermission('create', 'leavebalance', 'A4') || canManage, [hasPermission, canManage]);
+  const canUpdate       = useMemo(() => hasPermission('update', 'leavebalance', 'A4') || canManage, [hasPermission, canManage]);
   const canUpdateStatus = useMemo(() => hasPermission('update_status', 'leavebalance', 'A4') || canUpdate, [hasPermission, canUpdate]);
-  const canDelete = useMemo(() => hasPermission('delete', 'leavebalance', 'A4') || canManage, [hasPermission, canManage]);
-  const canBulk = useMemo(() => hasPermission('bulk', 'leavebalance', 'A4') || canManage, [hasPermission, canManage]);
+  const canDelete       = useMemo(() => hasPermission('delete', 'leavebalance', 'A4') || canManage, [hasPermission, canManage]);
+  const canBulk         = useMemo(() => hasPermission('bulk', 'leavebalance', 'A4') || canManage, [hasPermission, canManage]);
+  const canExport       = useMemo(() => hasPermission('export', 'leavebalance', 'A4') || canManage, [hasPermission, canManage]);
 
   const [activeTab, setActiveTab] = useState('all');
   const [records, setRecords] = useState([]);
@@ -257,6 +259,7 @@ const LeaveBalanceManagement = () => {
   const [filterEmployee, setFilterEmployee] = useState(null);
 
   const [leaveTypes, setLeaveTypes] = useState([]);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const [filters, setFilters] = useState({
     search: '', dateFrom: '', dateTo: '',
@@ -283,24 +286,28 @@ const LeaveBalanceManagement = () => {
   }, []);
   useEffect(() => { fetchLeaveTypes(); }, [fetchLeaveTypes]);
 
+  const buildFilterConditions = useCallback(() => {
+    const filterConditions = {};
+    if (activeTab !== 'all') filterConditions.status = activeTab;
+    if (filters.year !== 'all') filterConditions.year = parseInt(filters.year);
+    if (filters.leave_type_id !== 'all') filterConditions.leave_type_id = parseInt(filters.leave_type_id);
+    if (filters.emp_id !== 'all') filterConditions.emp_id = parseInt(filters.emp_id);
+    if (filters.dateFrom) filterConditions.expiry_date_from = filters.dateFrom;
+    if (filters.dateTo) filterConditions.expiry_date_to = filters.dateTo;
+    return filterConditions;
+  }, [activeTab, filters]);
+
   const fetchRecords = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-
-      const filterConditions = {};
-      if (activeTab !== 'all') filterConditions.status = activeTab;
-      if (filters.year !== 'all') filterConditions.year = parseInt(filters.year);
-      if (filters.leave_type_id !== 'all') filterConditions.leave_type_id = parseInt(filters.leave_type_id);
-      if (filters.emp_id !== 'all') filterConditions.emp_id = parseInt(filters.emp_id);
-      if (filters.dateFrom) filterConditions.expiry_date_from = filters.dateFrom;
-      if (filters.dateTo) filterConditions.expiry_date_to = filters.dateTo;
 
       const payload = { page: filters.page, limit: filters.limit, sortBy: 'created_at', sortOrder: 'DESC' };
       if (debouncedSearch.trim()) {
         payload.search = debouncedSearch.trim();
         payload.searchFields = 'employee_name,year,leave_type_name';
       }
+      const filterConditions = buildFilterConditions();
       if (Object.keys(filterConditions).length > 0) payload.filters = filterConditions;
 
       const response = await hrAPI.getLeaveBalancesAll(payload);
@@ -317,7 +324,7 @@ const LeaveBalanceManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, filters, debouncedSearch]);
+  }, [filters.page, filters.limit, buildFilterConditions, debouncedSearch]);
 
   useEffect(() => { fetchRecords(); /* eslint-disable-next-line */ }, [activeTab, filters, debouncedSearch]);
 
@@ -510,6 +517,109 @@ const LeaveBalanceManagement = () => {
     return filterEmployee.employee_code ? `${name} (${filterEmployee.employee_code})` : name;
   }, [filterEmployee]);
 
+  /* ──────────────────────────────────────────────────────────────────
+     EXPORT TO EXCEL (.xlsx) — respects active filters
+  ────────────────────────────────────────────────────────────────── */
+  const exportToExcel = useCallback(async () => {
+    if (!canExport) { showToast('No permission to export', 'error'); return; }
+    try {
+      setExportLoading(true);
+
+      // Fetch ALL matching rows (not just current page)
+      const fetchLimit = Math.min(Math.max(totalItems, 100), 10000);
+      const payload = {
+        page: 1,
+        limit: fetchLimit,
+        sortBy: 'created_at',
+        sortOrder: 'DESC',
+      };
+      if (debouncedSearch.trim()) {
+        payload.search = debouncedSearch.trim();
+        payload.searchFields = 'employee_name,year,leave_type_name';
+      }
+      const filterConditions = buildFilterConditions();
+      if (Object.keys(filterConditions).length > 0) payload.filters = filterConditions;
+
+      const response = await hrAPI.getLeaveBalancesAll(payload);
+      const rows = response.data?.rows || [];
+      if (rows.length === 0) {
+        showToast('No data to export', 'error');
+        return;
+      }
+
+      // Build data sheet
+      const data = rows.map(r => ({
+        'ID': r.leave_balance_id ?? '',
+        'Employee': r.employee ? `${r.employee.first_name || ''} ${r.employee.last_name || ''}`.trim() : '',
+        'Employee Code': r.employee?.employee_code || '',
+        'Leave Type': r.leave_type?.name || '',
+        'Leave Code': r.leave_type?.code || '',
+        'Year': r.year ?? '',
+        'Opening Balance': r.opening_balance ?? 0,
+        'Accrued': r.accrued ?? 0,
+        'Manual Credit': r.manual_credit ?? 0,
+        'Carried Over': r.carried_over ?? 0,
+        'Taken': r.taken ?? 0,
+        'Pending': r.pending ?? 0,
+        'Cancelled': r.cancelled ?? 0,
+        'Adjustment': r.adjustment ?? 0,
+        'Adjustment Reason': r.adjustment_reason || '',
+        'Encashed': r.encashed ?? 0,
+        'Balance': r.balance ?? 0,
+        'Expired': r.expired ?? 0,
+        'Expiry Date': r.expiry_date ? formatDate(r.expiry_date) : '',
+        'Status': r.status || '',
+        'Created By': r.created_by ?? '',
+        'Updated By': r.updated_by ?? '',
+        'Created At': r.createdAt ? formatDateTime(r.createdAt) : '',
+        'Updated At': r.updatedAt ? formatDateTime(r.updatedAt) : '',
+        'Deleted At': r.deletedAt ? formatDateTime(r.deletedAt) : '',
+      }));
+
+      // Build rules sheet (mirror of the on-screen legend)
+      const rules = [
+        { Section: 'Color Legend — Balance', Rule: 'Balance > 0', Meaning: 'Positive balance (available)' },
+        { Section: 'Color Legend — Balance', Rule: 'Balance = 0', Meaning: 'Zero balance' },
+        { Section: 'Color Legend — Balance', Rule: 'Balance < 0', Meaning: 'Negative balance (overdrawn)' },
+        { Section: 'Color Legend — Expiry', Rule: 'Expiry > 7 days', Meaning: 'Safe' },
+        { Section: 'Color Legend — Expiry', Rule: 'Expiry ≤ 7 days', Meaning: 'Expiring soon' },
+        { Section: 'Color Legend — Expiry', Rule: 'Expired (past)', Meaning: 'Past expiry date' },
+        { Section: 'Color Legend — Usage', Rule: 'Taken ≤ Accrued', Meaning: 'Within limits' },
+        { Section: 'Color Legend — Usage', Rule: 'Taken > Accrued', Meaning: 'Overused' },
+        { Section: 'Workflow', Rule: 'Pending → (Approve) → Active', Meaning: 'Manager approves a new record' },
+        { Section: 'Workflow', Rule: 'Active → (auto on expiry date) → Expired', Meaning: 'Server cron flips status when expiry_date < today' },
+        { Section: 'Workflow', Rule: 'Pending or Active → (Cancel Leave) → Cancelled', Meaning: 'Manual cancel action' },
+        { Section: 'Workflow', Rule: 'New records always start as Pending', Meaning: 'Create flow' },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const wsData = XLSX.utils.json_to_sheet(data);
+      const wsRules = XLSX.utils.json_to_sheet(rules);
+
+      // Column widths for readability
+      wsData['!cols'] = [
+        { wch: 8 },  { wch: 26 }, { wch: 14 }, { wch: 18 }, { wch: 12 },
+        { wch: 8 },  { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 14 },
+        { wch: 8 },  { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 26 },
+        { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 12 },
+        { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+      ];
+      wsRules['!cols'] = [{ wch: 24 }, { wch: 48 }, { wch: 48 }];
+
+      XLSX.utils.book_append_sheet(wb, wsData, 'Leave Balances');
+      XLSX.utils.book_append_sheet(wb, wsRules, 'Rules & Legend');
+
+      const filename = `leave_balances_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      showToast(`Exported ${data.length} record(s) to Excel`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Export failed', 'error');
+    } finally {
+      setExportLoading(false);
+    }
+  }, [canExport, totalItems, debouncedSearch, buildFilterConditions, showToast]);
+
   return (
     <div className="flex flex-col h-full p-3 pt-0 gap-3 overflow-hidden">
       <Suspense fallback={null}>
@@ -584,6 +694,14 @@ const LeaveBalanceManagement = () => {
             className="flex items-center gap-1 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50">
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>
+
+          {canExport && (
+            <button type="button" onClick={exportToExcel} disabled={exportLoading}
+              className="flex items-center gap-0.5 px-2 py-0.5 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              title="Export current filtered data to Excel (.xlsx)">
+              <Download className="w-2.5 h-2.5" /> {exportLoading ? 'Exporting…' : 'Export'}
+            </button>
+          )}
 
           {canCreate && (
             <button type="button" onClick={() => openModal()}
@@ -742,7 +860,7 @@ const LeaveBalanceManagement = () => {
           )}
         </div>
 
-        {/* ── RULES / COLOR LEGEND (as in old code) ── */}
+        {/* ── RULES / COLOR LEGEND ── */}
         <div className="flex-shrink-0 border-t border-gray-200 bg-gray-50 px-2 py-1.5">
           <div className="flex flex-wrap items-center gap-3 text-[9px] text-gray-700">
             <span className="font-medium text-gray-600">Color Legend:</span>
@@ -785,10 +903,8 @@ const LeaveBalanceManagement = () => {
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600 border border-red-700" />
               <span>Taken &gt; Accrued (Overused)</span>
             </div>
-
           </div>
 
-          {/* Workflow rules */}
           <div className="flex flex-wrap items-center gap-2 text-[9px] text-gray-600 mt-1">
             <span className="font-medium text-gray-600">Workflow:</span>
             <span className="inline-flex items-center gap-1">
