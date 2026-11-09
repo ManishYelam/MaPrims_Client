@@ -1,5 +1,5 @@
 // src/pages/Domains.jsx
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Globe,
@@ -30,21 +30,27 @@ import {
   KeySquare,
   Code,
   Cloud,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react'
 import WhatsAppFloatingIcon from '../components/ui/WhatsAppFloatingIcon'
+import { domainAPI } from '../services/api'
 
 // ==================== DATA ====================
 const DOMAIN_EXTENSIONS = [
-  { name: '.com', price: 899, popular: true,  badge: 'Most Popular', desc: 'The classic choice for businesses worldwide.', color: 'from-blue-500 to-blue-700' },
-  { name: '.in',  price: 499, popular: true,  badge: 'India Favorite', desc: 'Perfect for Indian businesses and startups.', color: 'from-orange-500 to-red-600' },
-  { name: '.io',  price: 2999, popular: true,  badge: 'Tech Favorite', desc: 'Loved by startups and tech companies.', color: 'from-purple-500 to-indigo-600' },
-  { name: '.dev', price: 1299, popular: true,  badge: 'Developers', desc: 'Built for developers and engineering teams.', color: 'from-green-500 to-emerald-600' },
-  { name: '.net', price: 999, popular: false, badge: '', desc: 'A trusted classic for networks and tech.', color: 'from-cyan-500 to-blue-600' },
-  { name: '.org', price: 1099, popular: false, badge: '', desc: 'Great for non-profits and communities.', color: 'from-teal-500 to-green-600' },
-  { name: '.co',  price: 1499, popular: false, badge: '', desc: 'A short, brandable global alternative.', color: 'from-pink-500 to-rose-600' },
-  { name: '.tech', price: 1999, popular: false, badge: '', desc: 'Show you mean business in technology.', color: 'from-indigo-500 to-purple-600' },
-  { name: '.ai',   price: 4999, popular: true,  badge: 'AI-Ready', desc: 'For AI products and intelligent platforms.', color: 'from-fuchsia-500 to-purple-600' },
+  { name: '.com',  price: 899,  popular: true,  badge: 'Most Popular',   desc: 'The classic choice for businesses worldwide.', color: 'from-blue-500 to-blue-700' },
+  { name: '.in',   price: 499,  popular: true,  badge: 'India Favorite', desc: 'Perfect for Indian businesses and startups.',  color: 'from-orange-500 to-red-600' },
+  { name: '.io',   price: 2999, popular: true,  badge: 'Tech Favorite',  desc: 'Loved by startups and tech companies.',        color: 'from-purple-500 to-indigo-600' },
+  { name: '.dev',  price: 1299, popular: true,  badge: 'Developers',     desc: 'Built for developers and engineering teams.',  color: 'from-green-500 to-emerald-600' },
+  { name: '.net',  price: 999,  popular: false, badge: '',               desc: 'A trusted classic for networks and tech.',     color: 'from-cyan-500 to-blue-600' },
+  { name: '.org',  price: 1099, popular: false, badge: '',               desc: 'Great for non-profits and communities.',       color: 'from-teal-500 to-green-600' },
+  { name: '.co',   price: 1499, popular: false, badge: '',               desc: 'A short, brandable global alternative.',       color: 'from-pink-500 to-rose-600' },
+  { name: '.tech', price: 1999, popular: false, badge: '',               desc: 'Show you mean business in technology.',        color: 'from-indigo-500 to-purple-600' },
+  { name: '.ai',   price: 4999, popular: true,  badge: 'AI-Ready',       desc: 'For AI products and intelligent platforms.',   color: 'from-fuchsia-500 to-purple-600' },
 ]
+
+// TLDs we actually ask the backend to check. Keep in sync with backend ALLOWED_TLDS.
+const SEARCH_TLDS = ['com', 'in', 'net', 'org', 'co', 'io', 'dev', 'ai', 'tech']
 
 const FEATURES = [
   { icon: Lock,         title: 'Free WHOIS Privacy',  desc: 'Your personal details stay hidden from public WHOIS lookups — always.' },
@@ -58,109 +64,122 @@ const FEATURES = [
 ]
 
 const STATS = [
-  { value: '500+', label: 'Domains Registered', icon: Globe,      color: 'text-primary-300' },
-  { value: '50+',  label: 'TLDs Available',     icon: Layers,     color: 'text-primary-200' },
-  { value: '99.9%', label: 'Uptime Guarantee',  icon: ShieldCheck,color: 'text-green-400' },
-  { value: '24/7', label: 'Customer Support',   icon: Headphones, color: 'text-teal-400' },
+  { value: '500+',  label: 'Domains Registered', icon: Globe,       color: 'text-primary-300' },
+  { value: '50+',   label: 'TLDs Available',     icon: Layers,      color: 'text-primary-200' },
+  { value: '99.9%', label: 'Uptime Guarantee',   icon: ShieldCheck, color: 'text-green-400' },
+  { value: '24/7',  label: 'Customer Support',   icon: Headphones,  color: 'text-teal-400' },
 ]
 
-// Hero highlights — mirrors Home hero pattern
 const HERO_HIGHLIGHTS = [
-  { icon: Globe, title: 'Domain Registration', desc: 'Build your online identity' },
-  { icon: Lock, title: 'Free WHOIS Privacy', desc: 'Your details stay hidden' },
-  { icon: Zap, title: 'Instant Activation', desc: 'Live within minutes' },
-  { icon: Headphones, title: '24/7 Support', desc: 'Assistance when you need it' },
+  { icon: Globe,      title: 'Domain Registration', desc: 'Build your online identity' },
+  { icon: Lock,       title: 'Free WHOIS Privacy',  desc: 'Your details stay hidden' },
+  { icon: Zap,        title: 'Instant Activation',  desc: 'Live within minutes' },
+  { icon: Headphones, title: '24/7 Support',        desc: 'Assistance when you need it' },
 ]
 
 const FAQS = [
-  {
-    q: 'How long does it take to register a domain?',
-    a: 'Registration is instant. Once payment is confirmed, your domain is active within minutes and you can start configuring DNS immediately.',
-  },
-  {
-    q: 'Can I transfer my existing domain to MaPrims?',
-    a: 'Yes. Transfers are free when you renew with us. You will need the authorization code from your current registrar, and the transfer typically completes within 5–7 days.',
-  },
-  {
-    q: 'What is WHOIS privacy and is it really free?',
-    a: 'WHOIS privacy hides your personal contact details from public domain lookups. We include it free on all supported TLDs — no extra charges, ever.',
-  },
-  {
-    q: 'Do I own the domain after registering?',
-    a: 'Yes. You are the registrant and full owner of the domain. You can transfer it out anytime — we never lock you in.',
-  },
-  {
-    q: 'What happens when my domain expires?',
-    a: 'We send renewal reminders well before expiry. After expiry, there is a grace period during which you can renew. After that, the domain becomes available to others.',
-  },
-  {
-    q: 'Can I register multiple domains at once?',
-    a: 'Absolutely. You can register as many domains as you need in one order — all managed from a single dashboard.',
-  },
+  { q: 'How long does it take to register a domain?',    a: 'Registration is instant. Once payment is confirmed, your domain is active within minutes and you can start configuring DNS immediately.' },
+  { q: 'Can I transfer my existing domain to MaPrims?',  a: 'Yes. Transfers are free when you renew with us. You will need the authorization code from your current registrar, and the transfer typically completes within 5–7 days.' },
+  { q: 'What is WHOIS privacy and is it really free?',   a: 'WHOIS privacy hides your personal contact details from public domain lookups. We include it free on all supported TLDs — no extra charges, ever.' },
+  { q: 'Do I own the domain after registering?',         a: 'Yes. You are the registrant and full owner of the domain. You can transfer it out anytime — we never lock you in.' },
+  { q: 'What happens when my domain expires?',           a: 'We send renewal reminders well before expiry. After expiry, there is a grace period during which you can renew. After that, the domain becomes available to others.' },
+  { q: 'Can I register multiple domains at once?',       a: 'Absolutely. You can register as many domains as you need in one order — all managed from a single dashboard.' },
 ]
 
 // ==================== HELPERS ====================
-const buildSearchResults = (query, tlds) => {
-  if (!query) return []
-  const base = query.replace(/\.[a-z]{2,}$/i, '').toLowerCase().trim()
-  if (!base) return []
-  return tlds.map(tld => ({
-    domain: `${base}${tld.name}`,
-    tld: tld.name,
-    price: tld.price,
-    available: true,
-    popular: tld.popular,
-  }))
+const sanitizeQuery = raw =>
+  String(raw || '').replace(/\.[a-z]{2,}$/i, '').toLowerCase().trim()
+
+const mergeResults = (backendData, query) => {
+  const byDomain = new Map((backendData || []).map(r => [r.domain, r]))
+  return SEARCH_TLDS.map(tld => {
+    const full = `${query}.${tld}`
+    const backend = byDomain.get(full)
+    const localMeta = DOMAIN_EXTENSIONS.find(e => e.name === `.${tld}`) || {}
+    return {
+      domain: full,
+      tld: `.${tld}`,
+      price: localMeta.price || 0,
+      available: backend ? Boolean(backend.available) : false,
+      status: backend?.status || 'unknown',
+      popular: localMeta.popular || false,
+      badge: localMeta.badge || '',
+    }
+  })
 }
 
 // ==================== COMPONENT ====================
 const Domains = () => {
   const [searchTerm, setSearchTerm] = useState('')
-  const [searched, setSearched] = useState('')
-  const [openFaq, setOpenFaq] = useState(0)
+  const [searched, setSearched]     = useState('')
+  const [results, setResults]       = useState([])
+  const [loading, setLoading]       = useState(false)
+  const [error, setError]           = useState('')
+  const [openFaq, setOpenFaq]       = useState(0)
 
-  const results = useMemo(
-    () => buildSearchResults(searched, DOMAIN_EXTENSIONS),
-    [searched]
+  const availableResults = useMemo(
+    () => results.filter(r => r.available),
+    [results]
   )
 
-  const handleSearch = e => {
-    e.preventDefault()
-    setSearched(searchTerm.trim())
-  }
+  const handleSearch = useCallback(
+    async e => {
+      e.preventDefault()
+      const base = sanitizeQuery(searchTerm)
+      if (!base) return
+
+      setLoading(true)
+      setError('')
+      setResults([])
+      setSearched(base)
+
+      try {
+        const res = await domainAPI.search(base, SEARCH_TLDS)
+        const backendData = res.data?.data || []
+        setResults(mergeResults(backendData, base))
+      } catch (err) {
+        setError(
+          err?.response?.data?.error ||
+            'Could not check availability right now. Please try again.'
+        )
+      } finally {
+        setLoading(false)
+      }
+    },
+    [searchTerm]
+  )
 
   const clearSearch = () => {
     setSearchTerm('')
     setSearched('')
+    setResults([])
+    setError('')
+    setLoading(false)
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50/20 to-indigo-50/10">
       {/* ============================================================
-          HERO + SEARCH (light gradient, mirrors Home hero)
+          HERO + SEARCH
           ============================================================ */}
       <section className="relative isolate w-full overflow-hidden bg-gradient-to-br from-primary-50 via-white to-primary-100/60">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 xl:px-16 py-8 sm:py-10 lg:py-14">
           <div className="text-center max-w-3xl mx-auto">
-            {/* Badge */}
             <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-primary-50 border border-primary-100 text-primary-600 text-[11px] sm:text-xs font-bold">
               <Sparkles size={13} />
               Domain Registration
             </div>
 
-            {/* Heading */}
             <h1 className="text-2xl sm:text-3xl md:text-4xl xl:text-5xl font-black leading-[1.1] tracking-tight text-primary-900">
               Secure Your Digital Identity
               <span className="block text-primary-600">with MaPrims Domains</span>
             </h1>
 
-            {/* Description */}
             <p className="mt-3 sm:mt-4 text-xs sm:text-sm lg:text-base leading-relaxed text-gray-600 max-w-2xl mx-auto">
               Search, register, and manage domains across 50+ TLDs — with free WHOIS
               privacy, easy DNS control, and instant activation.
             </p>
 
-            {/* Highlights (mirrors Home hero grid) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-6 w-full text-left">
               {HERO_HIGHLIGHTS.map((item, i) => (
                 <div key={i} className="flex items-center gap-2 sm:gap-2.5">
@@ -177,7 +196,7 @@ const Domains = () => {
               ))}
             </div>
 
-            {/* Search bar — white surface card */}
+            {/* Search bar */}
             <form onSubmit={handleSearch} className="max-w-2xl mx-auto mt-6">
               <div className="bg-white rounded-2xl p-2 shadow-xl shadow-primary-900/10 border border-primary-100 flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-grow">
@@ -188,8 +207,9 @@ const Domains = () => {
                     onChange={e => setSearchTerm(e.target.value)}
                     placeholder="Search for your dream domain (e.g., mybrand)"
                     className="w-full pl-10 pr-9 py-3 text-sm bg-gray-50 text-gray-900 rounded-xl placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white transition-all"
+                    disabled={loading}
                   />
-                  {searchTerm && (
+                  {searchTerm && !loading && (
                     <button
                       type="button"
                       onClick={clearSearch}
@@ -202,9 +222,17 @@ const Domains = () => {
                 </div>
                 <button
                   type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-500 text-white text-sm font-bold rounded-xl hover:from-primary-700 hover:to-primary-600 transition-all shadow-md hover:shadow-lg whitespace-nowrap"
+                  disabled={loading}
+                  className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-500 text-white text-sm font-bold rounded-xl hover:from-primary-700 hover:to-primary-600 transition-all shadow-md hover:shadow-lg whitespace-nowrap disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Search Domain
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Checking…
+                    </>
+                  ) : (
+                    'Search Domain'
+                  )}
                 </button>
               </div>
 
@@ -214,10 +242,7 @@ const Domains = () => {
                   <button
                     key={tld.name}
                     type="button"
-                    onClick={() => {
-                      setSearchTerm('mybrand')
-                      setSearched('mybrand')
-                    }}
+                    onClick={() => setSearchTerm(`mybrand${tld.name}`)}
                     className="px-2.5 py-1 bg-white rounded-full border border-primary-200 text-primary-700 font-semibold hover:bg-primary-50 transition-colors"
                   >
                     {tld.name}
@@ -226,12 +251,25 @@ const Domains = () => {
               </div>
             </form>
 
+            {/* Error banner */}
+            {error && (
+              <div className="mt-4 max-w-2xl mx-auto flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-left">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-red-700">{error}</p>
+              </div>
+            )}
+
             {/* Search results */}
-            {searched && (
+            {searched && !error && (
               <div className="mt-6 text-left max-w-2xl mx-auto bg-white rounded-xl shadow-xl overflow-hidden border border-primary-100">
                 <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
                   <p className="text-xs font-semibold text-gray-700">
                     Results for “{searched}”
+                    {!loading && results.length > 0 && (
+                      <span className="ml-2 text-[10px] font-normal text-gray-500">
+                        · {availableResults.length} available
+                      </span>
+                    )}
                   </p>
                   <button
                     onClick={clearSearch}
@@ -240,52 +278,78 @@ const Domains = () => {
                     Clear
                   </button>
                 </div>
+
                 <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
-                  {results.map(r => (
-                    <div
-                      key={r.domain}
-                      className="flex items-center justify-between px-4 py-2.5 hover:bg-primary-50/40 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {r.domain}
-                          </p>
-                          <p className="text-[10px] text-gray-500">
-                            {r.tld} · Available
-                          </p>
+                  {loading && (
+                    <div className="flex items-center justify-center py-8 text-gray-500 text-xs gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Checking availability across {SEARCH_TLDS.length} TLDs…
+                    </div>
+                  )}
+
+                  {!loading &&
+                    results.map(r => (
+                      <div
+                        key={r.domain}
+                        className="flex items-center justify-between px-4 py-2.5 hover:bg-primary-50/40 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          {r.available ? (
+                            <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400 flex-shrink-0" />
+                          )}
+                          <div>
+                            <p
+                              className={`text-sm font-semibold ${
+                                r.available ? 'text-gray-900' : 'text-gray-500'
+                              }`}
+                            >
+                              {r.domain}
+                            </p>
+                            <p className="text-[10px] text-gray-500">
+                              {r.tld} · {r.available ? 'Available' : 'Taken'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-primary-700">
+                            ₹{r.price.toLocaleString('en-IN')}
+                            <span className="text-[10px] font-normal text-gray-500">
+                              /yr
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            disabled={!r.available}
+                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                              r.available
+                                ? 'text-white bg-primary-600 hover:bg-primary-700'
+                                : 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                            }`}
+                          >
+                            {r.available ? 'Add' : 'N/A'}
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-primary-700">
-                          ₹{r.price.toLocaleString('en-IN')}
-                          <span className="text-[10px] font-normal text-gray-500">/yr</span>
-                        </span>
-                        <button
-                          type="button"
-                          className="px-3 py-1 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {results.length === 0 && (
+                    ))}
+
+                  {!loading && results.length === 0 && (
                     <p className="px-4 py-6 text-xs text-center text-gray-500">
                       No results — try a different name.
                     </p>
                   )}
                 </div>
+
                 <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 text-[10px] text-gray-500 text-center">
-                  Prices per year. Renewals may vary by TLD.
+                  Prices per year. Availability is verified live with our registrar.
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Stat strip — matches Home's dark primary strip */}
+        {/* Stat strip */}
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 xl:px-16 pb-6 sm:pb-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 bg-gradient-to-r from-primary-900 to-primary-600 rounded-lg sm:rounded-2xl p-4 sm:p-6 text-white shadow-xl">
             {STATS.map((stat, idx) => (
@@ -352,7 +416,11 @@ const Domains = () => {
                   <span className="text-[10px] text-green-600 font-semibold inline-flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" /> Available
                   </span>
-                  <button className="inline-flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-primary-700">
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm(`mybrand${tld.name}`)}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-primary-700"
+                  >
                     Register <ArrowRight className="w-3 h-3" />
                   </button>
                 </div>
@@ -506,10 +574,10 @@ const Domains = () => {
             <div className="bg-gradient-to-br from-primary-50 to-accent-50 rounded-xl border border-primary-100 p-5">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { icon: TrendingUp, label: 'Domains', value: '500+' },
+                  { icon: TrendingUp, label: 'Domains',       value: '500+' },
                   { icon: Users,      label: 'Happy Clients', value: '50+' },
-                  { icon: Award,      label: 'Uptime', value: '99.9%' },
-                  { icon: Star,       label: 'Support', value: '24/7' },
+                  { icon: Award,      label: 'Uptime',        value: '99.9%' },
+                  { icon: Star,       label: 'Support',       value: '24/7' },
                 ].map((s, i) => {
                   const Icon = s.icon
                   return (

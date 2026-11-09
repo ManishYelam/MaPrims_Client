@@ -6,6 +6,18 @@ export const organizationAPI = {
   createOrUpdate: (data) => api.post('/organization', data),
 };
 
+export const domainAPI = {
+  // Public availability search — calls your backend, never ResellerClub directly
+  search: (sld, tlds, params = {}) =>
+    api.get('/domains/search', {
+      params: {
+        domain: sld,
+        tlds: Array.isArray(tlds) ? tlds.join(',') : tlds,
+        ...params, // currency, etc.
+      },
+    }),
+}
+
 export const dbConnectionAPI = {
   create: (data) => api.post('/db', data),
   getAll: (params) => api.get('/db', { params }),
