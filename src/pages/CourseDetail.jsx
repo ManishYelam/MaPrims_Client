@@ -14,7 +14,7 @@ import InstructorProfile from '../components/ui/CourseDetails/InstructorProfile'
 
 const EnrollmentFlow = lazy(() => import('../components/enrollment/EnrollmentFlow'))
 
-const WHATSAPP_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '919527512770'
+const WHATSAPP_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '919373200525'
 const WHATSAPP_MESSAGE = `Hi, I'm interested in the course: `
 
 const CourseDetail = () => {

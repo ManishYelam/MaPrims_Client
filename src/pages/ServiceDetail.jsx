@@ -15,7 +15,7 @@ import ServiceOverview from '../components/ui/ServiceDetails/ServiceOverview'
 
 const ServiceOrderFlow = lazy(() => import('../components/serviceOrder/ServiceOrderFlow'))
 
-const WHATSAPP_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '919527512770'
+const WHATSAPP_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '919373200525'
 const WHATSAPP_MESSAGE = `Hi, I'm interested in the service: `
 
 const ServiceDetail = () => {

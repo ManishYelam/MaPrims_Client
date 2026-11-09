@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom'
 import {
   Search,
   Calendar,
-  User,
   Tag,
   ChevronRight,
   Mail,
@@ -15,20 +14,28 @@ import {
   Heart,
   BookOpen,
   Sparkles,
-  ArrowRight,
   Newspaper,
   Filter,
   X,
   Linkedin,
   Twitter,
   Facebook,
-  Loader2,
   Globe,
   Briefcase,
-  MessageSquare,
+  Lock,
+  Zap,
+  Headphones,
 } from 'lucide-react'
 import WhatsAppFloatingIcon from '../components/ui/WhatsAppFloatingIcon'
 import { blogAPI } from '../services/api'
+
+// ==================== HERO HIGHLIGHTS (mirrors Home hero) ====================
+const HERO_HIGHLIGHTS = [
+  { icon: BookOpen, title: 'Practical Guides', desc: 'Real-world, no-fluff articles' },
+  { icon: TrendingUp, title: 'Industry Trends', desc: 'What’s shaping digital business' },
+  { icon: Sparkles, title: 'Expert Insights', desc: 'Written by the MaPrims team' },
+  { icon: Headphones, title: 'Weekly Updates', desc: 'Fresh content, every week' },
+]
 
 // Helper: get initials from full name
 const getInitials = (name) => {
@@ -56,6 +63,37 @@ const truncate = (str, max = 100) => {
   if (!str) return ''
   return str.length > max ? str.slice(0, max) + '…' : str
 }
+
+// ==================== SKELETON ====================
+const BlogsSkeleton = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+    {Array.from({ length: 8 }).map((_, i) => (
+      <div
+        key={i}
+        className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 flex flex-col animate-pulse"
+      >
+        <div className="bg-gradient-to-r from-gray-200 to-gray-300 h-36 w-full" />
+        <div className="p-3 flex flex-col gap-2">
+          <div className="h-2.5 bg-gray-200 rounded w-1/3" />
+          <div className="h-3.5 bg-gray-200 rounded w-4/5" />
+          <div className="h-3.5 bg-gray-200 rounded w-3/5" />
+          <div className="h-2.5 bg-gray-200 rounded w-full" />
+          <div className="h-2.5 bg-gray-200 rounded w-5/6" />
+          <div className="flex justify-between items-center pt-2">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-gray-200" />
+              <div className="space-y-1">
+                <div className="h-2 w-16 bg-gray-200 rounded" />
+                <div className="h-2 w-10 bg-gray-200 rounded" />
+              </div>
+            </div>
+            <div className="h-4 w-14 bg-gray-200 rounded" />
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+)
 
 const Blogs = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -88,7 +126,6 @@ const Blogs = () => {
         const response = await blogAPI.getAll(payload)
         if (cancelled) return
 
-        // Defensive extraction — some APIs nest under data.data, others under data
         const raw = response?.data?.data ?? response?.data ?? []
         const apiBlogs = Array.isArray(raw) ? raw : []
 
@@ -101,7 +138,9 @@ const Blogs = () => {
           ),
           content: blog.content,
           author: blog.author?.full_name || blog.author_name || 'MaPrims Team',
-          authorAvatar: getInitials(blog.author?.full_name || blog.author_name || 'MaPrims'),
+          authorAvatar: getInitials(
+            blog.author?.full_name || blog.author_name || 'MaPrims'
+          ),
           date: blog.published_at || blog.created_at,
           readTime: `${blog.read_time || 3} min read`,
           image:
@@ -165,7 +204,8 @@ const Blogs = () => {
 
   // Trending: latest 3 posts
   const trendingPosts = useMemo(
-    () => [...blogs].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3),
+    () =>
+      [...blogs].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3),
     [blogs]
   )
 
@@ -174,17 +214,6 @@ const Blogs = () => {
     () => Array.from(new Set(blogs.flatMap(b => b.tags))).slice(0, 12),
     [blogs]
   )
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-primary-50/20 to-indigo-50/10">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 text-primary-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading insights...</p>
-        </div>
-      </div>
-    )
-  }
 
   if (error) {
     return (
@@ -223,49 +252,69 @@ const Blogs = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50/20 to-indigo-50/10">
       {/* ============================================================
-          HERO — aligned with Home/About positioning
+          HERO — light gradient, mirrors Home/Domains/Services
           ============================================================ */}
-      <section className="relative py-12 overflow-hidden bg-gradient-to-br from-primary-900 via-primary-800 to-accent-700">
-        <div className="absolute inset-0">
-          <div className="absolute top-1/4 -left-10 w-72 h-72 bg-accent-400/20 rounded-full blur-3xl animate-float" />
-          <div className="absolute bottom-1/4 -right-10 w-96 h-96 bg-primary-400/20 rounded-full blur-3xl animate-float animation-delay-2000" />
-        </div>
-        <div className="relative w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20 text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1 rounded-xl border border-white/20 mb-4">
-            <Newspaper className="w-3.5 h-3.5 text-accent-300" />
-            <span className="text-[11px] font-semibold text-white">
+      <section className="relative isolate w-full overflow-hidden bg-gradient-to-br from-primary-50 via-white to-primary-100/60">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 xl:px-16 py-8 sm:py-10 lg:py-14">
+          <div className="text-center max-w-3xl mx-auto">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-primary-50 border border-primary-100 text-primary-600 text-[11px] sm:text-xs font-bold">
+              <Newspaper size={13} />
               Insights & Updates
-            </span>
-          </div>
-          <h1 className="text-3xl lg:text-4xl font-black text-white mb-2">
-            Tech Insights &
-            <span className="block bg-gradient-to-r from-accent-400 to-accent-600 bg-clip-text text-transparent">
-              Business Perspectives
-            </span>
-          </h1>
-          <p className="text-sm text-primary-100 max-w-2xl mx-auto mb-6">
-            Practical articles on IT services, digital transformation, domain strategy,
-            custom development, cloud, and AI — written by the MaPrims team.
-          </p>
-          <div className="max-w-xl mx-auto">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Search articles..."
-                className="w-full px-3 py-2 pl-9 text-sm bg-white rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-500"
-              />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              {searchTerm && (
-                <button
-                  onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  aria-label="Clear search"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+            </div>
+
+            {/* Heading */}
+            <h1 className="text-2xl sm:text-3xl md:text-4xl xl:text-5xl font-black leading-[1.1] tracking-tight text-primary-900">
+              Tech Insights &
+              <span className="block text-primary-600">Business Perspectives</span>
+            </h1>
+
+            {/* Description */}
+            <p className="mt-3 sm:mt-4 text-xs sm:text-sm lg:text-base leading-relaxed text-gray-600 max-w-2xl mx-auto">
+              Practical articles on IT services, digital transformation, domain strategy,
+              custom development, cloud, and AI — written by the MaPrims team.
+            </p>
+
+            {/* Highlights (mirrors Home hero grid) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-6 w-full text-left">
+              {HERO_HIGHLIGHTS.map((item, i) => (
+                <div key={i} className="flex items-center gap-2 sm:gap-2.5">
+                  <div className="shrink-0 p-2 rounded-lg bg-primary-100 text-primary-600">
+                    <item.icon size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-primary-900">
+                      {item.title}
+                    </h3>
+                    <p className="text-[10px] sm:text-xs text-gray-500">
+                      {item.desc}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Search — white surface card */}
+            <div className="max-w-xl mx-auto mt-6">
+              <div className="relative bg-white rounded-xl p-2 shadow-xl shadow-primary-900/10 border border-primary-100">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder="Search articles by title, topic, or tag..."
+                  className="w-full px-9 py-2.5 text-sm bg-gray-50 text-gray-900 rounded-lg placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white transition-all"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={clearSearch}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 rounded hover:bg-gray-100"
+                    aria-label="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -277,7 +326,7 @@ const Blogs = () => {
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20 py-8">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Main Content */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {/* Filter Bar */}
             {searchTerm && (
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200">
@@ -297,8 +346,10 @@ const Blogs = () => {
             )}
 
             {/* Blog Grid */}
-            {filteredBlogs.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl shadow-sm">
+            {loading ? (
+              <BlogsSkeleton />
+            ) : filteredBlogs.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100">
                 <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <h3 className="text-base font-bold text-gray-900 mb-1">
                   No articles found
@@ -308,14 +359,14 @@ const Blogs = () => {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
                 {visibleBlogs.map(blog => (
                   <article
                     key={blog.id}
-                    className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 flex flex-col"
+                    className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 hover:border-primary-200 hover:-translate-y-1 flex flex-col"
                   >
                     {blog.image && (
-                      <div className="h-36 overflow-hidden">
+                      <div className="h-36 overflow-hidden bg-gray-100">
                         <img
                           src={blog.image}
                           alt={blog.title}
@@ -342,7 +393,7 @@ const Blogs = () => {
                       <p className="text-xs text-gray-600 mb-3 line-clamp-3 flex-1">
                         {blog.excerpt}
                       </p>
-                      <div className="flex items-center justify-between mt-auto">
+                      <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100">
                         <div className="flex items-center gap-1.5">
                           <div className="w-6 h-6 bg-gradient-to-r from-primary-500 to-accent-500 rounded-full flex items-center justify-center text-white text-[9px] font-bold">
                             {blog.authorAvatar}
@@ -369,11 +420,11 @@ const Blogs = () => {
               </div>
             )}
 
-            {hasMore && (
+            {hasMore && !loading && (
               <div className="text-center mt-8">
                 <button
                   onClick={loadMore}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-primary-200 text-primary-600 rounded-lg hover:bg-primary-50 hover:border-primary-300 transition-all text-xs font-semibold"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-primary-200 text-primary-600 rounded-lg hover:bg-primary-50 hover:border-primary-300 transition-all text-xs font-semibold shadow-sm"
                 >
                   Load More Articles <ChevronRight className="w-3 h-3" />
                 </button>
@@ -382,12 +433,15 @@ const Blogs = () => {
           </div>
 
           {/* Sidebar */}
-          <aside className="lg:w-64 space-y-4 flex-shrink-0">
+          <aside className="lg:w-64 flex-shrink-0 space-y-4">
             {/* Trending */}
             <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
-              <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-primary-500" /> Trending Now
-              </h3>
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
+                <div className="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center">
+                  <TrendingUp className="w-3.5 h-3.5 text-primary-600" />
+                </div>
+                <h3 className="text-sm font-black text-gray-900">Trending Now</h3>
+              </div>
               <div className="space-y-2">
                 {trendingPosts.length === 0 ? (
                   <p className="text-[11px] text-gray-500">
@@ -401,7 +455,7 @@ const Blogs = () => {
                       className="flex gap-2 group hover:bg-gray-50 p-1.5 rounded-lg transition-colors"
                     >
                       {post.image && (
-                        <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                           <img
                             src={post.image}
                             alt={post.title}
@@ -410,7 +464,7 @@ const Blogs = () => {
                           />
                         </div>
                       )}
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <h4 className="text-xs font-semibold text-gray-900 group-hover:text-primary-600 line-clamp-2">
                           {post.title}
                         </h4>
@@ -426,9 +480,12 @@ const Blogs = () => {
 
             {/* Popular Tags */}
             <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
-              <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-1.5">
-                <Tag className="w-4 h-4 text-primary-500" /> Popular Tags
-              </h3>
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
+                <div className="w-7 h-7 rounded-lg bg-accent-100 flex items-center justify-center">
+                  <Tag className="w-3.5 h-3.5 text-accent-600" />
+                </div>
+                <h3 className="text-sm font-black text-gray-900">Popular Tags</h3>
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {allTags.length === 0 ? (
                   <p className="text-[11px] text-gray-500">No tags yet.</p>
@@ -437,7 +494,7 @@ const Blogs = () => {
                     <button
                       key={tag}
                       onClick={() => setSearchTerm(tag)}
-                      className="px-1.5 py-0.5 bg-gray-100 hover:bg-primary-100 text-gray-700 hover:text-primary-700 rounded-full text-[10px] font-medium transition-colors"
+                      className="px-2 py-0.5 bg-gray-100 hover:bg-primary-100 text-gray-700 hover:text-primary-700 rounded-full text-[10px] font-medium transition-colors"
                     >
                       #{tag}
                     </button>
@@ -448,9 +505,12 @@ const Blogs = () => {
 
             {/* Recent Posts */}
             <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
-              <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-primary-500" /> Recent Posts
-              </h3>
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
+                <div className="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center">
+                  <Clock className="w-3.5 h-3.5 text-primary-600" />
+                </div>
+                <h3 className="text-sm font-black text-gray-900">Recent Posts</h3>
+              </div>
               <div className="space-y-2">
                 {blogs.length === 0 ? (
                   <p className="text-[11px] text-gray-500">
@@ -464,7 +524,7 @@ const Blogs = () => {
                       className="flex gap-2 group hover:bg-gray-50 p-1.5 rounded-lg transition-colors"
                     >
                       {blog.image && (
-                        <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                           <img
                             src={blog.image}
                             alt={blog.title}
@@ -473,7 +533,7 @@ const Blogs = () => {
                           />
                         </div>
                       )}
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <h4 className="text-xs font-semibold text-gray-900 group-hover:text-primary-600 line-clamp-2">
                           {blog.title}
                         </h4>
@@ -488,10 +548,10 @@ const Blogs = () => {
             </div>
 
             {/* Newsletter */}
-            <div className="bg-gradient-to-br from-primary-600 to-accent-600 rounded-xl p-3 shadow-lg text-white">
+            <div className="bg-gradient-to-br from-primary-700 via-primary-600 to-accent-600 rounded-xl p-3 shadow-lg text-white">
               <div className="flex items-center gap-1.5 mb-2">
                 <Mail className="w-4 h-4 text-accent-300" />
-                <h3 className="text-sm font-bold">Subscribe</h3>
+                <h3 className="text-sm font-black">Subscribe</h3>
               </div>
               <p className="text-[11px] text-primary-100 mb-3">
                 Get the latest insights delivered to your inbox.
@@ -511,7 +571,7 @@ const Blogs = () => {
                     value={newsletterEmail}
                     onChange={e => setNewsletterEmail(e.target.value)}
                     placeholder="Your email"
-                    className="w-full px-2 py-1 text-xs rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-accent-400"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-accent-400"
                     required
                   />
                   {newsletterError && (
@@ -519,7 +579,7 @@ const Blogs = () => {
                   )}
                   <button
                     type="submit"
-                    className="w-full flex items-center justify-center gap-1 px-2 py-1 bg-white text-primary-700 font-semibold rounded-lg hover:bg-gray-100 transition-all text-[11px]"
+                    className="w-full flex items-center justify-center gap-1 px-2 py-1.5 bg-white text-primary-700 font-semibold rounded-lg hover:bg-gray-100 transition-all text-[11px]"
                   >
                     <Send className="w-3 h-3" /> Subscribe
                   </button>
@@ -530,9 +590,11 @@ const Blogs = () => {
               </p>
             </div>
 
-            {/* CTA — Services (replaces "Write for Us") */}
+            {/* CTA — Services */}
             <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 text-center">
-              <Briefcase className="w-6 h-6 text-primary-500 mx-auto mb-1" />
+              <div className="w-9 h-9 rounded-lg bg-primary-100 mx-auto mb-1 flex items-center justify-center">
+                <Briefcase className="w-4 h-4 text-primary-600" />
+              </div>
               <h3 className="text-sm font-bold text-gray-900 mb-0.5">
                 Need IT Services?
               </h3>
@@ -543,13 +605,15 @@ const Blogs = () => {
                 to="/services"
                 className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 text-xs font-semibold"
               >
-                Explore Services
+                Explore Services <ChevronRight className="w-3 h-3" />
               </Link>
             </div>
 
-            {/* CTA — Domains (new) */}
+            {/* CTA — Domains */}
             <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 text-center">
-              <Globe className="w-6 h-6 text-accent-500 mx-auto mb-1" />
+              <div className="w-9 h-9 rounded-lg bg-accent-100 mx-auto mb-1 flex items-center justify-center">
+                <Globe className="w-4 h-4 text-accent-600" />
+              </div>
               <h3 className="text-sm font-bold text-gray-900 mb-0.5">
                 Secure Your Domain
               </h3>
@@ -560,13 +624,15 @@ const Blogs = () => {
                 to="/domains"
                 className="inline-flex items-center gap-1 text-accent-600 hover:text-accent-700 text-xs font-semibold"
               >
-                Register a Domain
+                Register a Domain <ChevronRight className="w-3 h-3" />
               </Link>
             </div>
 
             {/* Connect */}
             <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 text-center">
-              <Heart className="w-6 h-6 text-red-400 mx-auto mb-1" />
+              <div className="w-9 h-9 rounded-lg bg-red-50 mx-auto mb-1 flex items-center justify-center">
+                <Heart className="w-4 h-4 text-red-400" />
+              </div>
               <h3 className="text-sm font-bold text-gray-900 mb-0.5">
                 Enjoyed the content?
               </h3>

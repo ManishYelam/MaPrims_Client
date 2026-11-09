@@ -5,16 +5,27 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import {
-  Eye, EyeOff, User, Mail, Lock, Shield, AlertCircle, Check, X, Building2
+  Eye, EyeOff, User, Mail, Lock, Shield, AlertCircle, Check, X, Building2, Phone,
+  UserCircle2, Settings2
 } from 'lucide-react';
 import { authAPI, organizationAPI } from '../../services/api';
 import techhubLogo from '../../assets/MaPrimsTechLogo.png';
 import mobileLogo from '../../assets/MaPrimsTechLogo-M.png';
 
-/* ---------- validation schema ---------- */
+/* ---------- validation schema (customer-first, org required) ---------- */
 const signupSchema = yup.object({
   full_name: yup.string().min(2, 'Full name must be at least 2 characters').required('Full name is required'),
   email: yup.string().email('Please enter a valid email address').required('Email is required'),
+  phone: yup
+    .string()
+    .matches(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit Indian mobile number')
+    .required('Phone number is required'),
+  company: yup.string().min(2, 'Company name must be at least 2 characters').required('Company name is required'),
+  role: yup
+    .string()
+    .oneOf(['student', 'instructor', 'customer'], 'Please select a valid role')
+    .required('Role is required'),
+  org_id: yup.number().typeError('Organization must be selected').required('Please select an organization'),
   password: yup
     .string()
     .min(6, 'Password must be at least 6 characters')
@@ -27,10 +38,21 @@ const signupSchema = yup.object({
     .string()
     .oneOf([yup.ref('password'), null], 'Passwords must match')
     .required('Please confirm your password'),
-  role: yup.string().oneOf(['student', 'instructor'], 'Please select a valid role').required('Role is required'),
-  org_id: yup.number().typeError('Organization must be selected').required('Please select an organization'),
   agreeToTerms: yup.boolean().oneOf([true], 'You must agree to the terms and conditions'),
 });
+
+/* small reusable section header */
+const SectionHeader = ({ icon: Icon, title, subtitle }) => (
+  <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-white/10">
+    <div className="w-5 h-5 rounded-md bg-primary-500/20 flex items-center justify-center">
+      <Icon className="w-3 h-3 text-primary-300" />
+    </div>
+    <div>
+      <h3 className="text-[11px] font-bold text-white leading-tight">{title}</h3>
+      {subtitle && <p className="text-[9px] text-gray-400 leading-tight">{subtitle}</p>}
+    </div>
+  </div>
+);
 
 const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -54,17 +76,22 @@ const Signup = () => {
     defaultValues: {
       full_name: '',
       email: '',
+      phone: '',
+      company: '',
+      role: 'customer',
+      org_id: '',
       password: '',
       confirmPassword: '',
-      role: 'student',
-      org_id: '',
       agreeToTerms: false,
     },
   });
 
   const watchedPassword = watch('password');
   const watchedConfirmPassword = watch('confirmPassword');
+  const watchedPhone = watch('phone');
+  const watchedRole = watch('role');
 
+  /* ---------- load organizations ---------- */
   useEffect(() => {
     const fetchOrganizations = async () => {
       setLoadingOrgs(true);
@@ -109,8 +136,16 @@ const Signup = () => {
   const onSubmit = async data => {
     setIsLoading(true);
     try {
-      const { confirmPassword, agreeToTerms, ...submitData } = data;
+      const { confirmPassword, agreeToTerms, phone, ...rest } = data;
+
+      // Build API payload: form `phone` -> backend `phone_number`
+      const submitData = {
+        ...rest,
+        phone_number: phone,
+      };
+
       if (submitData.org_id) submitData.org_id = Number(submitData.org_id);
+
       await authAPI.register(submitData);
       navigate('/login', {
         replace: true,
@@ -287,31 +322,31 @@ const Signup = () => {
           ))}
         </div>
 
-        <div className="relative z-10 flex flex-col md:flex-row w-full max-w-md md:max-w-2xl rounded-lg overflow-hidden glass-card">
+        <div className="relative z-10 flex flex-col md:flex-row w-full max-w-md md:max-w-3xl rounded-lg overflow-hidden glass-card">
           {/* Left side – desktop logo */}
-          <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-primary-500/80 to-accent-500/80 p-4 items-center justify-center">
+          <div className="hidden md:flex md:w-1/3 bg-gradient-to-br from-primary-500/80 to-accent-500/80 p-4 items-center justify-center">
             <img
               src={techhubLogo}
               alt="MaPrims"
-              className="w-72 h-72 object-contain drop-shadow-2xl"
+              className="w-56 h-56 object-contain drop-shadow-2xl"
             />
           </div>
 
           {/* Right side – form */}
-          <div className="w-full md:w-1/2 p-4 md:p-6 flex flex-col justify-center bg-white/5 backdrop-blur-sm">
+          <div className="w-full md:w-2/3 p-4 md:p-6 flex flex-col justify-center bg-white/5 backdrop-blur-sm">
             {/* Mobile header – logo only */}
             <div className="md:hidden text-center mb-3">
               <img src={mobileLogo} alt="Logo" className="w-12 h-12 mx-auto drop-shadow-lg" />
             </div>
 
-            <div className="hidden md:block text-center mb-4">
-              <h2 className="text-lg font-bold text-white">Create Account</h2>
-              <p className="text-gray-300 text-xs mt-1">Join our platform</p>
+            <div className="hidden md:block text-center mb-3">
+              <h2 className="text-lg font-bold text-white">Create Your Account</h2>
+              <p className="text-gray-300 text-xs mt-1">Get started with MaPrims digital solutions</p>
             </div>
 
-            <form className="space-y-3" onSubmit={handleSubmit(onSubmit)}>
+            <form onSubmit={handleSubmit(onSubmit)}>
               {errors.root && (
-                <div className="bg-red-500/20 border border-red-400/30 rounded p-2 text-xs animate-fade-in backdrop-blur-sm">
+                <div className="bg-red-500/20 border border-red-400/30 rounded p-2 text-xs animate-fade-in backdrop-blur-sm mb-3">
                   <div className="flex items-start">
                     <AlertCircle className="w-3 h-3 text-red-300 mr-2 mt-0.5 flex-shrink-0" />
                     <div>
@@ -322,242 +357,320 @@ const Signup = () => {
                 </div>
               )}
 
-              {/* Full Name */}
-              <div>
-                <label htmlFor="full_name" className="block text-xs font-medium text-gray-200 mb-1">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-                  <input
-                    {...register('full_name')}
-                    type="text"
-                    id="full_name"
-                    autoComplete="name"
-                    className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${
-                      errors.full_name ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
-                    }`}
-                    placeholder="Enter your full name"
-                    disabled={isLoading}
+              {/* ============================================================
+                  TWO PARTITIONS — vertical on mobile, 2 columns on desktop
+              ============================================================ */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* ============================================================
+                    PARTITION 1 — YOUR DETAILS
+                ============================================================ */}
+                <div className="space-y-2.5">
+                  <SectionHeader
+                    icon={UserCircle2}
+                    title="Your Details"
+                    subtitle="Tell us who you are"
                   />
-                </div>
-                {errors.full_name && (
-                  <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.full_name.message}</p>
-                )}
-              </div>
 
-              {/* Email */}
-              <div>
-                <label htmlFor="email" className="block text-xs font-medium text-gray-200 mb-1">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-                  <input
-                    {...register('email')}
-                    type="email"
-                    id="email"
-                    autoComplete="email"
-                    className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${
-                      errors.email ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
-                    }`}
-                    placeholder="Enter your email address"
-                    disabled={isLoading}
+                  {/* Full Name */}
+                  <div>
+                    <label htmlFor="full_name" className="block text-xs font-medium text-gray-200 mb-1">
+                      Full Name <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                      <input
+                        {...register('full_name')}
+                        type="text"
+                        id="full_name"
+                        autoComplete="name"
+                        className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${errors.full_name ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
+                          }`}
+                        placeholder="Enter your full name"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    {errors.full_name && (
+                      <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.full_name.message}</p>
+                    )}
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label htmlFor="email" className="block text-xs font-medium text-gray-200 mb-1">
+                      Work Email <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                      <input
+                        {...register('email')}
+                        type="email"
+                        id="email"
+                        autoComplete="email"
+                        className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${errors.email ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
+                          }`}
+                        placeholder="you@company.com"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    {errors.email && (
+                      <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.email.message}</p>
+                    )}
+                  </div>
+
+                  {/* Phone */}
+                  <div>
+                    <label htmlFor="phone" className="block text-xs font-medium text-gray-200 mb-1">
+                      Phone (WhatsApp) <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                      <input
+                        {...register('phone')}
+                        type="tel"
+                        id="phone"
+                        autoComplete="tel"
+                        maxLength={10}
+                        onInput={(e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); }}
+                        className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${errors.phone ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
+                          }`}
+                        placeholder="10-digit mobile number"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    {watchedPhone && /^[6-9]\d{9}$/.test(watchedPhone) && (
+                      <div className="flex items-center space-x-1 mt-1 text-xs text-green-400">
+                        <Check className="w-3 h-3" />
+                        <span>Valid mobile number</span>
+                      </div>
+                    )}
+                    {errors.phone && (
+                      <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.phone.message}</p>
+                    )}
+                  </div>
+
+                  {/* Company */}
+                  <div>
+                    <label htmlFor="company" className="block text-xs font-medium text-gray-200 mb-1">
+                      Company / Business <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Building2 className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                      <input
+                        {...register('company')}
+                        type="text"
+                        id="company"
+                        autoComplete="organization"
+                        className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${errors.company ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
+                          }`}
+                        placeholder="Your company name"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    {errors.company && (
+                      <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.company.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* ============================================================
+                    PARTITION 2 — ACCOUNT SETUP
+                ============================================================ */}
+                <div className="space-y-2.5">
+                  <SectionHeader
+                    icon={Settings2}
+                    title="Account Setup"
+                    subtitle="Choose your role and secure your account"
                   />
-                </div>
-                {errors.email && (
-                  <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.email.message}</p>
-                )}
-              </div>
 
-              {/* Role */}
-              <div>
-                <label htmlFor="role" className="block text-xs font-medium text-gray-200 mb-1">
-                  I want to
-                </label>
-                <div className="relative">
-                  <Shield className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-                  <select
-                    {...register('role')}
-                    id="role"
-                    className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 appearance-none text-white ${
-                      errors.role ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
-                    }`}
-                    disabled={isLoading}
-                  >
-                    <option value="student">Learn Courses</option>
-                    <option value="instructor">Teach Courses</option>
-                  </select>
-                </div>
-                {errors.role && (
-                  <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.role.message}</p>
-                )}
-              </div>
-
-              {/* Organization */}
-              <div>
-                <label htmlFor="org_id" className="block text-xs font-medium text-gray-200 mb-1">
-                  Organization <span className="text-red-400">*</span>
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-                  <select
-                    {...register('org_id')}
-                    id="org_id"
-                    className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 appearance-none text-white ${
-                      errors.org_id ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
-                    }`}
-                    disabled={isLoading || loadingOrgs}
-                  >
-                    <option value="">{loadingOrgs ? 'Loading organizations...' : 'Select an organization'}</option>
-                    {organizations.map(org => (
-                      <option key={org.org_id} value={org.org_id}>
-                        {org.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {errors.org_id && (
-                  <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.org_id.message}</p>
-                )}
-              </div>
-
-              {/* Password */}
-              <div>
-                <label htmlFor="password" className="block text-xs font-medium text-gray-200 mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-                  <input
-                    {...register('password')}
-                    type={showPassword ? 'text' : 'password'}
-                    id="password"
-                    autoComplete="new-password"
-                    className={`w-full pl-7 pr-8 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${
-                      errors.password ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
-                    }`}
-                    placeholder="Create a strong password"
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={togglePasswordVisibility}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors duration-200"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.password.message}</p>
-                )}
-                {watchedPassword && (
-                  <div className="mt-2 space-y-1">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-300">Strength:</span>
-                      <span
-                        className={`font-medium ${
-                          passwordStrength.score <= 2
-                            ? 'text-red-400'
-                            : passwordStrength.score <= 3
-                              ? 'text-yellow-400'
-                              : passwordStrength.score <= 4
-                                ? 'text-blue-400'
-                                : 'text-green-400'
-                        }`}
+                  {/* Role — "I want to" */}
+                  <div>
+                    <label htmlFor="role" className="block text-xs font-medium text-gray-200 mb-1">
+                      I want to <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Shield className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                      <select
+                        {...register('role')}
+                        id="role"
+                        className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 appearance-none text-white ${errors.role ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
+                          }`}
+                        disabled={isLoading}
                       >
-                        {getPasswordStrengthText(passwordStrength.score)}
-                      </span>
+                        <option value="customer">Customer</option>
+                        <option value="student">Learn Courses</option>
+                        <option value="instructor">Teach Courses</option>
+                      </select>
                     </div>
-                    <div className="w-full bg-gray-700 rounded-full h-1.5">
+                    {watchedRole === 'customer' && (
+                      <p className="mt-1 text-[10px] text-primary-300">
+                        Hire MaPrims for web, mobile, cloud, AI, domains & more.
+                      </p>
+                    )}
+                    {errors.role && (
+                      <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.role.message}</p>
+                    )}
+                  </div>
+
+                  {/* Organization */}
+                  <div>
+                    <label htmlFor="org_id" className="block text-xs font-medium text-gray-200 mb-1">
+                      Organization <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Building2 className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                      <select
+                        {...register('org_id')}
+                        id="org_id"
+                        className={`w-full pl-7 pr-2 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 appearance-none text-white ${errors.org_id ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
+                          }`}
+                        disabled={isLoading || loadingOrgs}
+                      >
+                        <option value="">{loadingOrgs ? 'Loading organizations...' : 'Select an organization'}</option>
+                        {organizations.map(org => (
+                          <option key={org.org_id} value={org.org_id}>
+                            {org.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {errors.org_id && (
+                      <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.org_id.message}</p>
+                    )}
+                  </div>
+
+                  {/* Password */}
+                  <div>
+                    <label htmlFor="password" className="block text-xs font-medium text-gray-200 mb-1">
+                      Password <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                      <input
+                        {...register('password')}
+                        type={showPassword ? 'text' : 'password'}
+                        id="password"
+                        autoComplete="new-password"
+                        className={`w-full pl-7 pr-8 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${errors.password ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
+                          }`}
+                        placeholder="Create a strong password"
+                        disabled={isLoading}
+                      />
+                      <button
+                        type="button"
+                        onClick={togglePasswordVisibility}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors duration-200"
+                        disabled={isLoading}
+                      >
+                        {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      </button>
+                    </div>
+                    {errors.password && (
+                      <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.password.message}</p>
+                    )}
+                    {watchedPassword && (
+                      <div className="mt-2 space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-300">Strength:</span>
+                          <span
+                            className={`font-medium ${passwordStrength.score <= 2
+                                ? 'text-red-400'
+                                : passwordStrength.score <= 3
+                                  ? 'text-yellow-400'
+                                  : passwordStrength.score <= 4
+                                    ? 'text-blue-400'
+                                    : 'text-green-400'
+                              }`}
+                          >
+                            {getPasswordStrengthText(passwordStrength.score)}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full transition-all duration-300 ${getPasswordStrengthColor(passwordStrength.score)}`}
+                            style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div>
+                    <label htmlFor="confirmPassword" className="block text-xs font-medium text-gray-200 mb-1">
+                      Confirm Password <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                      <input
+                        {...register('confirmPassword')}
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        id="confirmPassword"
+                        autoComplete="new-password"
+                        className={`w-full pl-7 pr-8 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${errors.confirmPassword ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
+                          }`}
+                        placeholder="Confirm your password"
+                        disabled={isLoading}
+                      />
+                      <button
+                        type="button"
+                        onClick={toggleConfirmPasswordVisibility}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors duration-200"
+                        disabled={isLoading}
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      </button>
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.confirmPassword.message}</p>
+                    )}
+                    {watchedConfirmPassword && (
                       <div
-                        className={`h-1.5 rounded-full transition-all duration-300 ${getPasswordStrengthColor(passwordStrength.score)}`}
-                        style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
-                      ></div>
-                    </div>
+                        className={`flex items-center space-x-1 mt-1 text-xs ${watchedPassword === watchedConfirmPassword ? 'text-green-400' : 'text-red-400'
+                          }`}
+                      >
+                        {watchedPassword === watchedConfirmPassword ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>
+                          {watchedPassword === watchedConfirmPassword ? 'Passwords match' : 'Passwords do not match'}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Confirm Password */}
-              <div>
-                <label htmlFor="confirmPassword" className="block text-xs font-medium text-gray-200 mb-1">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-                  <input
-                    {...register('confirmPassword')}
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    id="confirmPassword"
-                    autoComplete="new-password"
-                    className={`w-full pl-7 pr-8 py-1.5 text-xs bg-black/30 border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent transition-all duration-200 placeholder-gray-500 text-white ${
-                      errors.confirmPassword ? 'border-red-400 bg-red-500/20' : 'border-gray-600'
-                    }`}
-                    placeholder="Confirm your password"
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={toggleConfirmPasswordVisibility}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors duration-200"
-                    disabled={isLoading}
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  </button>
+                  {/* Terms */}
+                  <div className="flex items-start space-x-2">
+                    <input
+                      {...register('agreeToTerms')}
+                      type="checkbox"
+                      id="agreeToTerms"
+                      autoComplete="off"
+                      className="mt-0.5 rounded border-gray-500 bg-black/30 text-primary-600 focus:ring-primary-500 w-3 h-3"
+                      disabled={isLoading}
+                    />
+                    <label htmlFor="agreeToTerms" className="text-xs text-gray-300 cursor-pointer">
+                      I agree to the{' '}
+                      <Link to="/terms" className="text-primary-300 hover:text-primary-200 font-medium">
+                        Terms and Conditions
+                      </Link>{' '}
+                      and{' '}
+                      <Link to="/privacy" className="text-primary-300 hover:text-primary-200 font-medium">
+                        Privacy Policy
+                      </Link>
+                    </label>
+                  </div>
+                  {errors.agreeToTerms && (
+                    <p className="text-xs text-red-400 animate-fade-in">{errors.agreeToTerms.message}</p>
+                  )}
                 </div>
-                {errors.confirmPassword && (
-                  <p className="mt-0.5 text-xs text-red-400 animate-fade-in">{errors.confirmPassword.message}</p>
-                )}
-                {watchedConfirmPassword && (
-                  <div
-                    className={`flex items-center space-x-1 mt-1 text-xs ${
-                      watchedPassword === watchedConfirmPassword ? 'text-green-400' : 'text-red-400'
-                    }`}
-                  >
-                    {watchedPassword === watchedConfirmPassword ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                    <span>
-                      {watchedPassword === watchedConfirmPassword ? 'Passwords match' : 'Passwords do not match'}
-                    </span>
-                  </div>
-                )}
               </div>
 
-              {/* Terms */}
-              <div className="flex items-start space-x-2">
-                <input
-                  {...register('agreeToTerms')}
-                  type="checkbox"
-                  id="agreeToTerms"
-                  autoComplete="off"
-                  className="mt-0.5 rounded border-gray-500 bg-black/30 text-primary-600 focus:ring-primary-500 w-3 h-3"
-                  disabled={isLoading}
-                />
-                <label htmlFor="agreeToTerms" className="text-xs text-gray-300 cursor-pointer">
-                  I agree to the{' '}
-                  <Link to="/terms" className="text-primary-300 hover:text-primary-200 font-medium">
-                    Terms and Conditions
-                  </Link>{' '}
-                  and{' '}
-                  <Link to="/privacy" className="text-primary-300 hover:text-primary-200 font-medium">
-                    Privacy Policy
-                  </Link>
-                </label>
-              </div>
-              {errors.agreeToTerms && (
-                <p className="text-xs text-red-400 animate-fade-in">{errors.agreeToTerms.message}</p>
-              )}
-
-              {/* Submit */}
+              {/* Submit — full width below the two partitions */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full py-2 px-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded font-semibold text-xs shadow-sm hover:shadow-md transform transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:ring-offset-1 focus:ring-offset-transparent ${
-                  isLoading
+                className={`w-full mt-4 py-2 px-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded font-semibold text-xs shadow-sm hover:shadow-md transform transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:ring-offset-1 focus:ring-offset-transparent ${isLoading
                     ? 'opacity-70 cursor-not-allowed'
                     : 'hover:from-primary-700 hover:to-primary-800 hover:-translate-y-0.5'
-                }`}
+                  }`}
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center space-x-1">
