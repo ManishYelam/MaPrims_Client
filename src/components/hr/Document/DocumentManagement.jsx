@@ -264,7 +264,8 @@ const DocumentRow = React.memo(({
       </td>
       <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{doc.version}</td>
       <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{doc.parent_document_id || '—'}</td>
-      <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{doc.created_by || '—'}</td>
+      {/* <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{doc.created_by || '—'}</td> */}
+      <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{formatDateTime(doc.updatedAt || '—')}</td>
       <td className="px-2 py-1.5 whitespace-nowrap text-[10px]">{doc.updated_by || '—'}</td>
     </tr>
   );
@@ -979,7 +980,8 @@ Uploaded At: ${formatDateTime(doc.uploaded_at)}
                   <th className="px-2 py-1.5 text-center text-xs font-medium">Confid</th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium">Version</th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium">Parent</th>
-                  <th className="px-2 py-1.5 text-left text-xs font-medium">Created By</th>
+                  {/* <th className="px-2 py-1.5 text-left text-xs font-medium">Created By</th> */}
+                  <th className="px-2 py-1.5 text-left text-xs font-medium">Updated At</th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium">Updated By</th>
                 </tr>
               </thead>
